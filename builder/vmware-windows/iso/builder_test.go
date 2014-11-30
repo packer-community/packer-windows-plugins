@@ -1,12 +1,13 @@
 package iso
 
 import (
-	"github.com/mitchellh/packer/packer"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/mitchellh/packer/packer"
 )
 
 func testConfig() map[string]interface{} {
@@ -16,6 +17,7 @@ func testConfig() map[string]interface{} {
 		"iso_url":           "http://www.packer.io",
 		"shutdown_command":  "foo",
 		"ssh_username":      "foo",
+		"winrm_username":    "foo",
 
 		packer.BuildNameConfigKey: "foo",
 	}
@@ -136,6 +138,10 @@ func TestBuilderPrepare_Defaults(t *testing.T) {
 
 	if b.config.SSHWaitTimeout != (20 * time.Minute) {
 		t.Errorf("bad wait timeout: %s", b.config.SSHWaitTimeout)
+	}
+
+	if b.config.WinRMWaitTimeout != (20 * time.Minute) {
+		t.Errorf("bad wait timeout: %s", b.config.WinRMWaitTimeout)
 	}
 
 	if b.config.VMName != "packer-foo" {
