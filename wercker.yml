@@ -1,0 +1,9 @@
+box: wercker/golang@1.2.1
+build:
+    steps:
+        - setup-go-workspace
+        - script:
+            name: go get
+            code: |
+                go get -t ./...
+
