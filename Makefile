@@ -9,7 +9,10 @@ dev:
 	@TF_DEV=1 sh -c "$(CURDIR)/scripts/build.sh"
 
 test:
-	go test $(TEST) $(TESTARGS) -timeout=10s
+	"$(CURDIR)/scripts/test.sh"
+
+testrace:
+	go test -race $(TEST) $(TESTARGS)
 
 updatedeps:
 	go get -d -v -p 2 ./...
