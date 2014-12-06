@@ -12,7 +12,7 @@ func NewDriver(config *config) (vmwcommon.Driver, error) {
 	drivers := []vmwcommon.Driver{}
 
 	if config.RemoteType == "" {
-		return vmwcommon.NewDriver(&config.DriverConfig, &config.SSHConfig)
+		return vmwcommon.NewDriver(&config.DriverConfig)
 	}
 
 	drivers = []vmwcommon.Driver{

@@ -60,7 +60,7 @@ type Driver interface {
 
 // NewDriver returns a new driver implementation for this operating
 // system, or an error if the driver couldn't be initialized.
-func NewDriver(dconfig *DriverConfig, config *SSHConfig) (Driver, error) {
+func NewDriver(dconfig *DriverConfig) (Driver, error) {
 	drivers := []Driver{}
 
 	switch runtime.GOOS {
