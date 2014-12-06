@@ -5,6 +5,7 @@ import (
 	"github.com/mitchellh/packer/packer"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func testConfig() map[string]interface{} {
@@ -46,6 +47,14 @@ func TestBuilderPrepare_Defaults(t *testing.T) {
 
 	if b.config.GuestOSType != "Other" {
 		t.Errorf("bad guest OS type: %s", b.config.GuestOSType)
+	}
+
+	//if b.config.SSHWaitTimeout != (20 * time.Minute) {
+	//	t.Errorf("bad wait timeout: %s", b.config.SSHWaitTimeout)
+	//}
+
+	if b.config.WinRMWaitTimeout != (20 * time.Minute) {
+		t.Errorf("bad wait timeout: %s", b.config.WinRMWaitTimeout)
 	}
 
 	if b.config.VMName == "" {
