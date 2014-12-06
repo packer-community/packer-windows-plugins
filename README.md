@@ -51,8 +51,7 @@ The simplest packer template for Windows, which utilizes the `virtualbox-windows
     }
 </pre>
 
-
-We recommend these projects for more information about, and examples of Windows-centric Packer templates:
+Check out these projects for more information about, and examples of Windows-centric Packer templates:
 
 - [joefitzgerald/packer-windows](https://github.com/joefitzgerald/packer-windows)
 - [mwrock/boxstarter](https://github.com/mwrock/boxstarter)
@@ -60,5 +59,5 @@ We recommend these projects for more information about, and examples of Windows-
 
 ### Community
 
-- *IRC*: `#packer-tool` / `#packer-windows` on Freenode.
-- *Slack*: packer.slack.com
+- **IRC**: `#packer-tool` / `#packer-windows` on Freenode.
+- **Slack**: packer.slack.com
