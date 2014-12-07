@@ -17,4 +17,4 @@ build:
         - sherzberg/slack-notify:
             subdomain: packer
             token: $SLACK_TOKEN
-            channel: builds
+            channel: #builds
