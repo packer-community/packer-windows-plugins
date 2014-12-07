@@ -9,6 +9,9 @@ build:
         - script:
             name: go test
             code: |
-                make test -v ./...
+                make test
+        - script:
+            name: Publish Coveralls
+            code: $HOME/gopath/bin/goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN 
         - tcnksm/goveralls:
             token: $COVERALLS_TOKEN
