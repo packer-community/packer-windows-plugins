@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/mitchellh/packer/common/uuid"
 	"github.com/mitchellh/packer/packer"
 )
 
@@ -21,22 +19,13 @@ type RunConfig struct {
 	SourceAmi                string            `mapstructure:"source_ami"`
 	SpotPrice                string            `mapstructure:"spot_price"`
 	SpotPriceAutoProduct     string            `mapstructure:"spot_price_auto_product"`
-	RawSSHTimeout            string            `mapstructure:"ssh_timeout"`
-	SSHUsername              string            `mapstructure:"ssh_username"`
-	SSHPassword              string            `mapstructure:"ssh_password"`
-	SSHPrivateKeyFile        string            `mapstructure:"ssh_private_key_file"`
-	SSHPrivateIp             bool              `mapstructure:"ssh_private_ip"`
-	SSHPort                  int               `mapstructure:"ssh_port"`
+	WinRMPrivateIp           bool              `mapstructure:"winrm_private_ip"`
 	SecurityGroupId          string            `mapstructure:"security_group_id"`
 	SecurityGroupIds         []string          `mapstructure:"security_group_ids"`
 	SubnetId                 string            `mapstructure:"subnet_id"`
-	TemporaryKeyPairName     string            `mapstructure:"temporary_key_pair_name"`
 	UserData                 string            `mapstructure:"user_data"`
 	UserDataFile             string            `mapstructure:"user_data_file"`
 	VpcId                    string            `mapstructure:"vpc_id"`
-
-	// Unexported fields that are calculated from others
-	sshTimeout time.Duration
 }
 
 func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
@@ -53,12 +42,8 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 		"instance_type":           &c.InstanceType,
 		"spot_price":              &c.SpotPrice,
 		"spot_price_auto_product": &c.SpotPriceAutoProduct,
-		"ssh_timeout":             &c.RawSSHTimeout,
-		"ssh_username":            &c.SSHUsername,
-		"ssh_private_key_file":    &c.SSHPrivateKeyFile,
 		"source_ami":              &c.SourceAmi,
 		"subnet_id":               &c.SubnetId,
-		"temporary_key_pair_name": &c.TemporaryKeyPairName,
 		"vpc_id":                  &c.VpcId,
 		"availability_zone":       &c.AvailabilityZone,
 		"user_data":               &c.UserData,
@@ -76,22 +61,7 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 		}
 	}
 
-	// Defaults
-	if c.SSHPort == 0 {
-		c.SSHPort = 22
-	}
-
-	if c.RawSSHTimeout == "" {
-		c.RawSSHTimeout = "5m"
-	}
-
-	if c.TemporaryKeyPairName == "" {
-		c.TemporaryKeyPairName = fmt.Sprintf(
-			"packer %s", uuid.TimeOrderedUUID())
-	}
-
 	// Validation
-	var err error
 	if c.SourceAmi == "" {
 		errs = append(errs, errors.New("A source_ami must be specified"))
 	}
@@ -105,10 +75,6 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 			errs = append(errs, errors.New(
 				"spot_price_auto_product must be specified when spot_price is auto"))
 		}
-	}
-
-	if c.SSHUsername == "" {
-		errs = append(errs, errors.New("An ssh_username must be specified"))
 	}
 
 	if c.UserData != "" && c.UserDataFile != "" {
@@ -164,14 +130,5 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 
 	c.RunTags = newTags
 
-	c.sshTimeout, err = time.ParseDuration(c.RawSSHTimeout)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("Failed parsing ssh_timeout: %s", err))
-	}
-
 	return errs
-}
-
-func (c *RunConfig) SSHTimeout() time.Duration {
-	return c.sshTimeout
 }

@@ -11,20 +11,8 @@ import (
 	"time"
 )
 
-func WinRMAddressFunc(config *wincommon.WinRMConfig) func(state multistep.StateBag) (string, error) {
-	if config.WinRMHost == "" {
-		log.Printf("No WinRM Host provided, using default host 127.0.0.1")
-		config.WinRMHost = "127.0.0.1"
-	}
-	log.Printf("Have address from config: %s:%d", config.WinRMHost, config.WinRMPort)
-	return func(state multistep.StateBag) (string, error) {
-		log.Printf("Returning address from config: %s:%d", config.WinRMHost, config.WinRMPort)
-		return fmt.Sprintf("%s:%d", config.WinRMHost, config.WinRMPort), nil
-	}
-}
-
 // Returns an Endpoint suitable for the WinRM communicator
-func WinRMAddress(e *ec2.EC2, port int, private bool) func(multistep.StateBag) (string, error) {
+func WinRMAddress(e *ec2.EC2, port uint, private bool) func(multistep.StateBag) (string, error) {
 	return func(state multistep.StateBag) (string, error) {
 		for j := 0; j < 2; j++ {
 			var host string
@@ -40,6 +28,7 @@ func WinRMAddress(e *ec2.EC2, port int, private bool) func(multistep.StateBag) (
 			}
 
 			if host != "" {
+				log.Printf("Configured remote WinRM address to be %s:%d", host, port)
 				return fmt.Sprintf("%s:%d", host, port), nil
 			}
 
@@ -60,10 +49,10 @@ func WinRMAddress(e *ec2.EC2, port int, private bool) func(multistep.StateBag) (
 	}
 }
 
-// Creates a generic SSH or WinRM connect step from a VMWare builder config
-func NewConnectStep(ec2 *ec2.EC2, port int, private bool, winrmConfig wincommon.WinRMConfig) multistep.Step {
+// Creates a WinRM connect step for an EC2 instance
+func NewConnectStep(ec2 *ec2.EC2, private bool, winrmConfig wincommon.WinRMConfig) multistep.Step {
 	return &wincommon.StepConnectWinRM{
-		WinRMAddress:     WinRMAddress(ec2, port, private),
+		WinRMAddress:     WinRMAddress(ec2, winrmConfig.WinRMPort, private),
 		WinRMUser:        winrmConfig.WinRMUser,
 		WinRMPassword:    winrmConfig.WinRMPassword,
 		WinRMWaitTimeout: winrmConfig.WinRMWaitTimeout,

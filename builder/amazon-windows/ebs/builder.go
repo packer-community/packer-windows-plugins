@@ -6,7 +6,6 @@
 package ebs
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/mitchellh/goamz/ec2"
@@ -26,7 +25,7 @@ type config struct {
 	awscommon.AccessConfig `mapstructure:",squash"`
 	awscommon.AMIConfig    `mapstructure:",squash"`
 	awscommon.BlockDevices `mapstructure:",squash"`
-	awscommon.RunConfig    `mapstructure:",squash"`
+	winawscommon.RunConfig `mapstructure:",squash"`
 	wincommon.WinRMConfig  `mapstructure:",squash"`
 
 	tpl *packer.ConfigTemplate
@@ -92,15 +91,9 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			SourceAmi:          b.config.SourceAmi,
 			EnhancedNetworking: b.config.AMIEnhancedNetworking,
 		},
-		&awscommon.StepKeyPair{
-			Debug:          b.config.PackerDebug,
-			DebugKeyPath:   fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
-			KeyPairName:    b.config.TemporaryKeyPairName,
-			PrivateKeyFile: b.config.SSHPrivateKeyFile,
-		},
-		&awscommon.StepSecurityGroup{
+		&winawscommon.StepSecurityGroup{
 			SecurityGroupIds: b.config.SecurityGroupIds,
-			SSHPort:          b.config.SSHPort,
+			WinRMPort:        b.config.WinRMPort,
 			VpcId:            b.config.VpcId,
 		},
 		&awscommon.StepRunSourceInstance{
@@ -119,7 +112,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			BlockDevices:             b.config.BlockDevices,
 			Tags:                     b.config.RunTags,
 		},
-		winawscommon.NewConnectStep(ec2conn, b.config.SSHPort, b.config.SSHPrivateIp, b.config.WinRMConfig),
+		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, b.config.WinRMConfig),
 		&common.StepProvision{},
 		&stepStopInstance{SpotPrice: b.config.SpotPrice},
 		// TODO(mitchellh): verify works with spots
