@@ -8,6 +8,7 @@ This is super experimental. *These are not complete Packer plugins yet*.
 
 [![wercker status](https://app.wercker.com/status/900b58d8e99fca90bcfcd599a5e5219e/m "wercker status")](https://app.wercker.com/project/bykey/900b58d8e99fca90
 bcfcd599a5e5219e)
+[![Coverage Status](https://coveralls.io/repos/packer-community/packer-windows-plugins/badge.png)](https://coveralls.io/r/packer-community/packer-windows-plugins)
 
 ### Getting Started
 

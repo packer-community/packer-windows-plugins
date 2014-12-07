@@ -9,4 +9,6 @@ build:
         - script:
             name: go test
             code: |
-                go test -v ./...
+                make test -v ./...
+        - tcnksm/goveralls:
+            token: $COVERALLS_TOKEN
