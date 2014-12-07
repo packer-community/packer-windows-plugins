@@ -117,7 +117,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 			continue
 		}
 
-		log.Println("Attempting WinRM connection (timeout: %s)", s.WinRMWaitTimeout)
+		log.Printf("Attempting WinRM connection (timeout: %s)", s.WinRMWaitTimeout)
 
 		comm, err = plugin.New(endpoint, s.WinRMUser, s.WinRMPassword, s.WinRMWaitTimeout)
 		if err != nil {
