@@ -1,0 +1,16 @@
+package main
+
+import (
+	"github.com/mitchellh/packer/packer/plugin"
+	shell "github.com/packer-community/packer-windows-plugins/provisioner/windows-shell"
+)
+
+func main() {
+
+	server, err := plugin.Server()
+	if err != nil {
+		panic(err)
+	}
+	server.RegisterProvisioner(new(shell.Provisioner))
+	server.Serve()
+}
