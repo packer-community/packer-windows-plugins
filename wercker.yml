@@ -13,3 +13,8 @@ build:
         - script:
             name: Publish Coveralls
             code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
+    after-steps:
+        - sherzberg/slack-notify:
+            subdomain: packer
+            token: $SLACK_TOKEN
+            channel: builds
