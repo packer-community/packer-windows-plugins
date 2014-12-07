@@ -83,10 +83,10 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			GuestAdditionsMode: b.config.GuestAdditionsMode,
 		},
 		new(vboxcommon.StepAttachFloppy),
-		&vboxcommon.StepForwardSSH{
-			GuestPort:   b.config.SSHPort,
-			HostPortMin: b.config.SSHHostPortMin,
-			HostPortMax: b.config.SSHHostPortMax,
+		&winvboxcommon.StepForwardWinRM{
+			GuestPort:   b.config.WinRMPort,
+			HostPortMin: b.config.WinRMHostPortMin,
+			HostPortMax: b.config.WinRMHostPortMax,
 		},
 		&vboxcommon.StepVBoxManage{
 			Commands: b.config.VBoxManage,

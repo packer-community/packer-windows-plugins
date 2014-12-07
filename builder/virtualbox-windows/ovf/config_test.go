@@ -8,7 +8,8 @@ import (
 
 func testConfig(t *testing.T) map[string]interface{} {
 	return map[string]interface{}{
-		"ssh_username":     "foo",
+		"winrm_username":   "foo",
+		"winrm_password":   "foo",
 		"shutdown_command": "foo",
 	}
 }

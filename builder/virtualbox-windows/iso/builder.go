@@ -29,9 +29,8 @@ type config struct {
 	vboxcommon.ExportOpts           `mapstructure:",squash"`
 	vboxcommon.FloppyConfig         `mapstructure:",squash"`
 	vboxcommon.OutputConfig         `mapstructure:",squash"`
-	vboxcommon.RunConfig            `mapstructure:",squash"`
+	winvboxcommon.RunConfig         `mapstructure:",squash"`
 	vboxcommon.ShutdownConfig       `mapstructure:",squash"`
-	vboxcommon.SSHConfig            `mapstructure:",squash"`
 	wincommon.WinRMConfig           `mapstructure:",squash"`
 	vboxcommon.VBoxManageConfig     `mapstructure:",squash"`
 	vboxcommon.VBoxManagePostConfig `mapstructure:",squash"`
@@ -80,7 +79,6 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	errs = packer.MultiErrorAppend(errs, b.config.VBoxManageConfig.Prepare(b.config.tpl)...)
 	errs = packer.MultiErrorAppend(errs, b.config.VBoxManagePostConfig.Prepare(b.config.tpl)...)
 	errs = packer.MultiErrorAppend(errs, b.config.VBoxVersionConfig.Prepare(b.config.tpl)...)
-	//errs = packer.MultiErrorAppend(errs, b.config.SSHConfig.Prepare(b.config.tpl)...)
 	errs = packer.MultiErrorAppend(errs, b.config.WinRMConfig.Prepare(b.config.tpl)...)
 	warnings := make([]string, 0)
 
@@ -298,10 +296,10 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			GuestAdditionsMode: b.config.GuestAdditionsMode,
 		},
 		new(vboxcommon.StepAttachFloppy),
-		&vboxcommon.StepForwardSSH{
-			GuestPort:   b.config.SSHPort,
-			HostPortMin: b.config.SSHHostPortMin,
-			HostPortMax: b.config.SSHHostPortMax,
+		&winvboxcommon.StepForwardWinRM{
+			GuestPort:   b.config.WinRMPort,
+			HostPortMin: b.config.WinRMHostPortMin,
+			HostPortMax: b.config.WinRMHostPortMax,
 		},
 		&vboxcommon.StepVBoxManage{
 			Commands: b.config.VBoxManage,
