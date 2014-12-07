@@ -61,7 +61,6 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		return nil, errs
 	}
 
-	log.Println(common.ScrubConfig(b.config, b.config.AccessKey, b.config.SecretKey))
 	return nil, nil
 }
 
@@ -84,6 +83,9 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	state.Put("ec2", ec2conn)
 	state.Put("hook", hook)
 	state.Put("ui", ui)
+	// Required by StepRunSourceInstance. Seems a better alternative
+	// to duplicating ~300 lines of code just to remove it as a dependency
+	state.Put("keyPair", "")
 
 	// Build the steps
 	steps := []multistep.Step{
