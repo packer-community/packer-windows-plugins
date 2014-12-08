@@ -2,9 +2,10 @@ package common
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/mitchellh/multistep"
 	wincommon "github.com/packer-community/packer-windows-plugins/common"
-	"log"
 )
 
 func WinRMAddressFunc(config wincommon.WinRMConfig) func(state multistep.StateBag) (string, error) {
@@ -12,10 +13,16 @@ func WinRMAddressFunc(config wincommon.WinRMConfig) func(state multistep.StateBa
 		log.Printf("No WinRM Host provided, using default host 127.0.0.1")
 		config.WinRMHost = "127.0.0.1"
 	}
+
 	log.Printf("Have address from config: %s:%d", config.WinRMHost, config.WinRMPort)
+
 	return func(state multistep.StateBag) (string, error) {
-		log.Printf("Returning address from config: %s:%d", config.WinRMHost, config.WinRMPort)
-		return fmt.Sprintf("%s:%d", config.WinRMHost, config.WinRMPort), nil
+		winrmPort := config.WinRMPort
+		if forwardedPort, ok := state.GetOk("winrmHostPort"); ok {
+			winrmPort = forwardedPort.(uint)
+		}
+
+		return fmt.Sprintf("%s:%d", config.WinRMHost, winrmPort), nil
 	}
 }
 
