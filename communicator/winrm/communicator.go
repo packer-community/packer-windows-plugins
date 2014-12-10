@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
+	"net"
+	"net/http"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -113,6 +117,48 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 	return
 }
 
+func (c *Communicator) UploadDir(dst string, src string, excl []string) error {
+	// Find an available TCP port for our HTTP server
+	var httpPort uint
+	var httpAddr string
+	portRange := 1000
+	var l net.Listener
+	for {
+		var err error
+		var offset uint = 0
+
+		if portRange > 0 {
+			// Intn will panic if portRange == 0, so we do a check.
+			offset = uint(rand.Intn(portRange))
+		}
+
+		httpPort = offset + 8000
+		httpAddr = fmt.Sprintf(":%d", httpPort)
+		log.Printf("Trying port: %d", httpPort)
+		l, err = net.Listen("tcp", httpAddr)
+		if err == nil {
+			break
+		}
+	}
+
+	log.Printf("Starting HTTP server on port %d", httpPort)
+
+	// Start the HTTP server and run it in the background
+	fileServer := http.FileServer(http.Dir(src))
+	server := &http.Server{Addr: httpAddr, Handler: fileServer}
+	go server.Serve(l)
+
+	// Pull down file via remote command
+	downloadCommand := fmt.Sprintf("powershell -Command \"iex ((new-object net.webclient).DownloadFile('http://%s/%-'))\"", httpAddr, httpPort, src)
+	c.runCommand(downloadCommand, cmd)
+
+	// Cleanup
+	l.Close()
+
+	// Save the address into the state so it can be accessed in the future
+	// 	state.Put("http_port", httpPort)
+}
+
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
 	fm := &fileManager{
 		comm: c,
@@ -120,7 +166,7 @@ func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo)
 	return fm.Upload(dst, input)
 }
 
-func (c *Communicator) UploadDir(dst string, src string, excl []string) error {
+func (c *Communicator) xUploadDir(dst string, src string, excl []string) error {
 	fm := &fileManager{
 		comm: c,
 	}
