@@ -3,6 +3,7 @@ package winrm
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -155,4 +156,43 @@ func TestISO8601DurationString(t *testing.T) {
 	if s != "PT0S" {
 		t.Fatalf("bad ISO 8601 duration string for negative: %s", s)
 	}
+}
+
+func TestTempFile(t *testing.T) {
+	comm := defaultCommunicator()
+	tempString := "Temp for packer"
+	var output *os.File
+	var input *os.File
+	defer func() {
+		// Close and delete tmp files
+		input.Close()
+		output.Close()
+		os.Remove(input.Name())
+		os.Remove(output.Name())
+	}()
+
+	input, err := ioutil.TempFile("/tmp", "packer-test-tmp")
+	fmt.Printf("Input name: %s", input.Name())
+	input.WriteString(tempString)
+	if err != nil {
+		t.Fatalf("Unable to create tmp file for test: %s", err)
+	}
+	f, err := os.Open(input.Name())
+	output, err = comm.TempFile(f)
+	fmt.Printf("Output name: %s", output.Name())
+
+	if err != nil {
+		t.Fatalf("Unable to create tmp file for test: %s", err)
+	}
+
+	data, err := ioutil.ReadFile(output.Name())
+	dataString := string(data[0:15])
+	if dataString != tempString {
+		t.Fatalf("File contents should equal \"%s\". Actual: \"%s\"", tempString, dataString)
+	}
+}
+
+func defaultCommunicator() Communicator {
+	comm, _ := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
+	return *comm
 }
