@@ -1,16 +1,10 @@
 package winrm
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
-	"math/rand"
-	"net"
-	"net/http"
 	"os"
-	"path"
 	"strings"
 	"time"
 
@@ -119,102 +113,23 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 	return
 }
 
-func (c *Communicator) TempFile(input io.Reader) (*os.File, error) {
-	httpDir := "/tmp"
-	tmp, err := ioutil.TempFile(httpDir, "packer-tmp")
-
-	defer func() {
-		tmp.Close()
-	}()
-
-	r := bufio.NewReader(input)
-	b := make([]byte, 1024)
-	for {
-		_, err := r.Read(b)
-		if err == io.EOF {
-			break
-		}
-		tmp.Write(b)
-	}
-
-	return tmp, err
-}
-
-// func (c *Communicator) CreateWebServer(port string)
-
-// func (c *Communicator) xUploadDir(dst string, src string, excl []string) error {
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
 	log.Println("Uploading with the HTTP Server")
 
-	// Copy file to local temp file
-	tmp, err := c.TempFile(input)
+	fm, err := NewFileManager(c)
 	if err != nil {
-		log.Print("Error creating temporary upload of file: %s", err)
+		log.Printf("Unable to create File Manager: %s", err)
 		return err
-	}
-
-	// Find an available TCP port for our HTTP server
-	var httpPort uint
-	var httpAddr string
-	ipAddress := "10.0.2.2"
-	portRange := 1000
-	var l net.Listener
-
-	log.Print("Looking for an available port...")
-	for {
-		var err error
-		var offset uint = 0
-
-		if portRange > 0 {
-			// Intn will panic if portRange == 0, so we do a check.
-			offset = uint(rand.Intn(portRange))
-		}
-
-		httpPort = offset + 8000
-		httpAddr = fmt.Sprintf(":%d", httpPort)
-		log.Printf("Trying port: %d", httpPort)
-		l, err = net.Listen("tcp", httpAddr)
-		if err == nil {
-			break
-		}
-	}
-
-	log.Printf("Starting HTTP server on port %d hosting files in dir %s", httpPort, path.Dir(tmp.Name()))
-
-	// Start the HTTP server and run it in the background
-	fileServer := http.FileServer(http.Dir(path.Dir(tmp.Name())))
-	server := &http.Server{Addr: httpAddr, Handler: fileServer}
-	go server.Serve(l)
-	//defer l.Close()
-
-	// Pull down file via remote command
-	log.Printf("Uploading \"%s\"with the HTTP Server on ip %s and port %d with path %s", tmp.Name(), ipAddress, httpPort, dst)
-	//downloadCommand := fmt.Sprintf("powershell -Command \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), dst)
-	//downloadCommand := fmt.Sprintf("powershell \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), dst)
-	downloadCommand := fmt.Sprintf("powershell Invoke-WebRequest 'http://%s:%d/%s' -OutFile %s", ipAddress, httpPort, path.Base(tmp.Name()), dst)
-	log.Printf("Executing download command: %s", downloadCommand)
-
-	cmd := &packer.RemoteCmd{
-		Command: downloadCommand,
-	}
-	err = c.runCommand(downloadCommand, cmd)
-
-	// Save the address into the state so it can be accessed in the future
-	// 	state.Put("http_port", httpPort)
-	return err
-}
-
-func (c *Communicator) xUpload(dst string, input io.Reader, ignored *os.FileInfo) error {
-	fm := &fileManager{
-		comm: c,
 	}
 
 	return fm.Upload(dst, input)
 }
 
 func (c *Communicator) UploadDir(dst string, src string, excl []string) error {
-	fm := &fileManager{
-		comm: c,
+	fm, err := NewFileManager(c)
+	if err != nil {
+		log.Printf("Unable to create File Manager: %s", err)
+		return err
 	}
 	return fm.UploadDir(dst, src)
 }

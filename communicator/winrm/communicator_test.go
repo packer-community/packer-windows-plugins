@@ -160,6 +160,7 @@ func TestISO8601DurationString(t *testing.T) {
 
 func TestTempFile(t *testing.T) {
 	comm := defaultCommunicator()
+	fm := &fileManager{comm: comm}
 	tempString := "Temp for packer"
 	var output *os.File
 	var input *os.File
@@ -178,7 +179,7 @@ func TestTempFile(t *testing.T) {
 		t.Fatalf("Unable to create tmp file for test: %s", err)
 	}
 	f, err := os.Open(input.Name())
-	output, err = comm.TempFile(f)
+	output, err = fm.TempFile(f)
 	fmt.Printf("Output name: %s", output.Name())
 
 	if err != nil {
@@ -192,7 +193,10 @@ func TestTempFile(t *testing.T) {
 	}
 }
 
-func defaultCommunicator() Communicator {
-	comm, _ := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
-	return *comm
+func defaultCommunicator() *Communicator {
+	comm, err := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
+	if err != nil {
+		fmt.Sprintf("Could not create Communicator: %s", err)
+	}
+	return comm
 }
