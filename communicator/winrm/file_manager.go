@@ -58,8 +58,10 @@ func (f *fileManager) getHttpServer(uploadFile os.File) (uint, *http.Server) {
 		httpPort = offset + 8000
 		httpAddr = fmt.Sprintf(":%d", httpPort)
 		log.Printf("Trying port: %d", httpPort)
-		_, err = net.Listen("tcp", httpAddr)
+		l, err := net.Listen("tcp", httpAddr)
 		if err == nil {
+			// Free port. TODO: Maybe pass the listener around instead
+			l.Close()
 			break
 		}
 	}
@@ -78,12 +80,9 @@ func (f *fileManager) UploadFile(dst string, src *os.File) error {
 	// Start the HTTP server and run it in the background
 	port, server := f.getHttpServer(*src)
 	go server.ListenAndServe()
-	//l, err := net.Listen("tcp", ":8124")
-	//port = 8124
-	//go server.Serve(l)
 
 	// Pull down file via remote command
-	//log.Printf("Uploading \"%s\"with the HTTP Server on ip %s and port %d with path %s", tmp.Name(), ipAddress, httpPort, winDest)
+	log.Printf("Uploading \"%s\"with the HTTP Server on ip %s and port %d with path %s", src.Name(), f.webServerIpAddress, port, winDest)
 	//downloadCommand := fmt.Sprintf("powershell -Command \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), winDest)
 	//downloadCommand := fmt.Sprintf("powershell \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), winDest)
 	downloadCommand := fmt.Sprintf("powershell Invoke-WebRequest 'http://%s:%d/%s' -OutFile %s", f.webServerIpAddress, port, path.Base(src.Name()), winDest)
