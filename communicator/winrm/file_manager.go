@@ -25,12 +25,18 @@ type fileManager struct {
 	guestUploadDir     string
 	hostUploadDir      string
 	webServerIpAddress string
+}
+
+const DEFAULT_HOST_IP_ADDRESS = "10.0.2.2"
+
+type webServer struct {
+	webServerIpAddress string
 	webServerPort      uint
+	webServer          *http.Server
 }
 
 func NewFileManager(comm *Communicator) (*fileManager, error) {
-	//return &fileManager{comm: comm, server: f.defaultHttpServer()}, nil
-	return &fileManager{comm: comm, webServerIpAddress: "10.0.2.2"}, nil
+	return &fileManager{comm: comm, webServerIpAddress: DEFAULT_HOST_IP_ADDRESS}, nil
 }
 
 // Get a WebServer to serve the given file in the host.
@@ -39,7 +45,7 @@ func NewFileManager(comm *Communicator) (*fileManager, error) {
 //
 //	int	The listen port of the server
 //  http.server A reference to the Server to run
-func (f *fileManager) getHttpServer(uploadFile os.File) (uint, *http.Server) {
+func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
 	// Find an available TCP port for our HTTP server
 	var httpAddr string
 	portRange := 1000
@@ -70,22 +76,23 @@ func (f *fileManager) getHttpServer(uploadFile os.File) (uint, *http.Server) {
 	fileServer := http.FileServer(http.Dir(path.Dir(uploadFile.Name())))
 	server := &http.Server{Addr: httpAddr, Handler: fileServer}
 
-	return httpPort, server
+	return server
 }
 
-func (f *fileManager) UploadFile(dst string, src *os.File) error {
+func (f *fileManager) UploadFile(dst string, src *os.File, server *http.Server) error {
 	winDest := winFriendlyPath(dst)
 	log.Printf("Uploading: %s ->%s", src.Name(), winDest)
 
 	// Start the HTTP server and run it in the background
-	port, server := f.getHttpServer(*src)
+	parts := strings.SplitN(server.Addr, ":", 2)
+	port := parts[1]
 	go server.ListenAndServe()
 
 	// Pull down file via remote command
-	log.Printf("Uploading \"%s\"with the HTTP Server on ip %s and port %d with path %s", src.Name(), f.webServerIpAddress, port, winDest)
+	log.Printf("Uploading \"%s\"with the HTTP Server on ip %s and port %s with path %s", src.Name(), f.webServerIpAddress, port, winDest)
 	//downloadCommand := fmt.Sprintf("powershell -Command \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), winDest)
 	//downloadCommand := fmt.Sprintf("powershell \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), winDest)
-	downloadCommand := fmt.Sprintf("powershell Invoke-WebRequest 'http://%s:%d/%s' -OutFile %s", f.webServerIpAddress, port, path.Base(src.Name()), winDest)
+	downloadCommand := fmt.Sprintf("powershell Invoke-WebRequest 'http://%s:%s/%s' -OutFile %s", f.webServerIpAddress, port, path.Base(src.Name()), winDest)
 	log.Printf("Executing download command: %s", downloadCommand)
 
 	cmd := &packer.RemoteCmd{
@@ -93,18 +100,6 @@ func (f *fileManager) UploadFile(dst string, src *os.File) error {
 	}
 	err := f.comm.runCommand(downloadCommand, cmd)
 	return err
-}
-
-func (f *fileManager) xUploadFile(dst string, src string) error {
-	winDest := winFriendlyPath(dst)
-	log.Printf("Uploading: %s ->%s", src, winDest)
-
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-	return f.Upload(winDest, srcFile)
 }
 
 func (f *fileManager) Upload(dst string, input io.Reader) error {
@@ -116,7 +111,8 @@ func (f *fileManager) Upload(dst string, input io.Reader) error {
 		return err
 	}
 
-	f.UploadFile(dst, tmp)
+	server := f.getHttpServer(*tmp)
+	f.UploadFile(dst, tmp, server)
 
 	return err
 }
@@ -130,9 +126,16 @@ func (f *fileManager) UploadDir(dst string, src string) error {
 	return filepath.Walk(src, f.walkFile)
 }
 
+//
+// /foo/
+//   - bar.txt
+//   - bat/
+//   	- bat.txt
+//   	- baz.txt
+//   - bro.txt
 func (f *fileManager) walkFile(hostPath string, hostFileInfo os.FileInfo, err error) error {
+	relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 	if err == nil && shouldUploadFile(hostFileInfo) {
-		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 		guestPath := filepath.Join(f.guestUploadDir, relPath, hostFileInfo.Name())
 		hostFile, err := os.Open(hostPath)
 		defer hostFile.Close()
@@ -140,7 +143,11 @@ func (f *fileManager) walkFile(hostPath string, hostFileInfo os.FileInfo, err er
 			log.Printf("Unable to open source file %s for upload: %s", hostPath, err)
 			return err
 		}
-		err = f.UploadFile(guestPath, hostFile)
+		server := f.getHttpServer(*hostFile)
+		err = f.UploadFile(guestPath, hostFile, server)
+	} else if hostFileInfo.IsDir() {
+		log.Printf("Found a directory, preparing it: %s", relPath)
+		f.prepareFileDirectory(relPath)
 	}
 	return err
 }
@@ -165,6 +172,28 @@ func (f *fileManager) runCommand(cmd string) error {
 
 func winFriendlyPath(path string) string {
 	return strings.Replace(path, "/", "\\", -1)
+}
+
+func (f *fileManager) prepareFileDirectory(dst string) error {
+	log.Printf("Preparing directory for upload: %s", dst)
+
+	command := fmt.Sprintf(`
+	$dest_file_path = [System.IO.Path]::GetFullPath("%s")
+	if (Test-Path $dest_file_path) {
+	  rm $dest_file_path
+	}
+	else {
+	  $dest_dir = ([System.IO.Path]::GetDirectoryName($dest_file_path))
+	  New-Item -ItemType directory -Force -ErrorAction SilentlyContinue -Path $dest_dir
+	}`, dst)
+
+	cmd := &packer.RemoteCmd{
+		Command: command,
+	}
+
+	err := f.comm.runCommand(command, cmd)
+
+	return err
 }
 
 func shouldUploadFile(hostFile os.FileInfo) bool {
@@ -210,9 +239,4 @@ func (f *fileManager) TempFile(input io.Reader) (*os.File, error) {
 	}
 
 	return tmp, err
-}
-
-type Payload struct {
-	Src  string
-	Dest string
 }
