@@ -66,9 +66,7 @@ func (s *StepForwardWinRM) Run(state multistep.StateBag) multistep.StepAction {
 	}
 
 	// Save the port we're using so that future steps can use it.
-	// Alias to 'ssh' so that other steps can use it
 	state.Put("winrmHostPort", winrmHostPort)
-	//state.Put("sshHostPort", winrmHostPort)
 
 	return multistep.ActionContinue
 }

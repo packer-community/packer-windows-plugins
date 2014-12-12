@@ -120,7 +120,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Commands: b.config.VBoxManagePost,
 			Tpl:      b.config.tpl,
 		},
-		&vboxcommon.StepExport{
+		&winvboxcommon.StepExport{
 			Format:     b.config.Format,
 			OutputDir:  b.config.OutputDir,
 			ExportOpts: b.config.ExportOpts.ExportOpts,
