@@ -55,7 +55,7 @@ The simplest packer template for Windows, which utilizes the `virtualbox-windows
 Check out these projects for more information about, and examples of Windows-centric Packer templates:
 
 - [joefitzgerald/packer-windows](https://github.com/joefitzgerald/packer-windows)
-- [mwrock/boxstarter](https://github.com/mwrock/boxstarter)
+- [https://github.com/box-cutter/windows-vm](https://github.com/box-cutter/windows-vm)
 - [dylanmei/packer-windows-templates](https://github.com/dylanmei/packer-windows-templates)
 
 ### Community
