@@ -12,6 +12,15 @@ import (
 	"github.com/mitchellh/packer/packer"
 )
 
+// type WinRMCommunicator interface {
+// 	//StartElevated(cmd *packer.RemoteCmd) (err error)
+// 	//Start(cmd *packer.RemoteCmd) (err error)
+// 	//RunCommand(commandText string, cmd *packer.RemoteCmd) (err error)
+// 	Upload(string, io.Reader, *os.FileInfo) error
+// 	UploadDir(dst string, src string, exclude []string) error
+// 	Download(string, io.Writer) error
+// }
+
 type Communicator struct {
 	client   *winrm.Client
 	endpoint *winrm.Endpoint

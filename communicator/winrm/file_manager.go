@@ -20,7 +20,7 @@ import (
 )
 
 type fileManager struct {
-	comm               *Communicator
+	comm               packer.Communicator
 	server             *http.Server
 	guestUploadDir     string
 	hostUploadDir      string
@@ -35,7 +35,7 @@ type webServer struct {
 	webServer          *http.Server
 }
 
-func NewFileManager(comm *Communicator) (*fileManager, error) {
+func NewFileManager(comm packer.Communicator) (*fileManager, error) {
 	return &fileManager{comm: comm, webServerIpAddress: DEFAULT_HOST_IP_ADDRESS}, nil
 }
 
@@ -98,7 +98,7 @@ func (f *fileManager) UploadFile(dst string, src *os.File, server *http.Server) 
 	cmd := &packer.RemoteCmd{
 		Command: downloadCommand,
 	}
-	err := f.comm.runCommand(downloadCommand, cmd)
+	err := f.comm.Start(cmd)
 	return err
 }
 
@@ -118,24 +118,26 @@ func (f *fileManager) Upload(dst string, input io.Reader) error {
 }
 
 func (f *fileManager) UploadDir(dst string, src string) error {
+	log.Printf("uploadDir to %s from %s", dst, src)
 	// We need these dirs later when walking files
 	f.guestUploadDir = dst
 	f.hostUploadDir = src
 
 	// Walk all files in the src directory on the host system
-	return filepath.Walk(src, f.walkFile)
+	return filepath.Walk(src, f.uploadFileWalker)
 }
 
 //
-// /foo/
+// /tmp/foo/
 //   - bar.txt
 //   - bat/
 //   	- bat.txt
 //   	- baz.txt
 //   - bro.txt
-func (f *fileManager) walkFile(hostPath string, hostFileInfo os.FileInfo, err error) error {
-	relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
+func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo, err error) error {
+	log.Printf("uploadFileWalker hostUploadDir: %s, hostpath: %s, hostFileInfo.name(): %s", f.hostUploadDir, hostPath, hostFileInfo.Name())
 	if err == nil && shouldUploadFile(hostFileInfo) {
+		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 		guestPath := filepath.Join(f.guestUploadDir, relPath, hostFileInfo.Name())
 		hostFile, err := os.Open(hostPath)
 		defer hostFile.Close()
@@ -146,6 +148,7 @@ func (f *fileManager) walkFile(hostPath string, hostFileInfo os.FileInfo, err er
 		server := f.getHttpServer(*hostFile)
 		err = f.UploadFile(guestPath, hostFile, server)
 	} else if hostFileInfo.IsDir() {
+		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 		log.Printf("Found a directory, preparing it: %s", relPath)
 		f.prepareFileDirectory(relPath)
 	}
@@ -157,7 +160,7 @@ func (f *fileManager) runCommand(cmd string) error {
 		Command: cmd,
 	}
 
-	err := f.comm.runCommand(cmd, remoteCmd)
+	err := f.comm.Start(remoteCmd)
 	if err != nil {
 		return err
 	}
@@ -179,19 +182,17 @@ func (f *fileManager) prepareFileDirectory(dst string) error {
 
 	command := fmt.Sprintf(`
 	$dest_file_path = [System.IO.Path]::GetFullPath("%s")
-	if (Test-Path $dest_file_path) {
+	if (-not (Test-Path $dest_file_path) ) {
 	  rm $dest_file_path
-	}
-	else {
-	  $dest_dir = ([System.IO.Path]::GetDirectoryName($dest_file_path))
-	  New-Item -ItemType directory -Force -ErrorAction SilentlyContinue -Path $dest_dir
+	  Write-Output "Creating directory: $dest_file_path"
+	  md $dest_file_path -Force
 	}`, dst)
 
 	cmd := &packer.RemoteCmd{
 		Command: command,
 	}
 
-	err := f.comm.runCommand(command, cmd)
+	err := f.comm.Start(cmd)
 
 	return err
 }
