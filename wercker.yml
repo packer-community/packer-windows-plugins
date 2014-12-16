@@ -1,4 +1,4 @@
-box: wercker/golang@1.2.1
+box: tcnksm/gox
 build:
     steps:
         - setup-go-workspace
@@ -10,15 +10,15 @@ build:
             name: go test
             code: |
                 make test
-        - script:
-            name: Publish Coveralls
-            code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
+#        - script:
+#            name: Publish Coveralls
+#            code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
         - script:
             name: gox build
             code: |
                 go get -u -v github.com/mitchellh/gox
-                sudo -E env PATH=$GOPATH/bin:$PATH gox -build-toolchain
-                make bin
+                sudo -E env PATH=$GOPATH/bin:$PATH gox -build-toolchain -os="linux darwin windows" -osarch="386 amd64"
+                XC_OS="linux darwin windows" XC_ARCH="386 amd64" make bin
         - tcnksm/zip:
             input: pkg
             output: dist
