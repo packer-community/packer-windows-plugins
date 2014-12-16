@@ -13,6 +13,10 @@ build:
         - script:
             name: Publish Coveralls
             code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
+        - script:
+            name: build distributable binaries
+            code: |
+                make bin
         - tcnksm/zip:
             input: pkg
             output: dist
