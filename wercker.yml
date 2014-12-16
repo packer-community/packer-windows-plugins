@@ -16,11 +16,11 @@ build:
         - script:
             name: gox build
             code: |
+                mkdir -p pkg dist
                 XC_OS="linux darwin windows" XC_ARCH="386 amd64" make bin
-                mkdir -p dist
         - tcnksm/zip:
-            input: pkg
-            output: dist
+            input: $WERCKER_OUTPUT_DIR/pkg
+            output: $WERCKER_OUTPUT_DIR/dist
 #    after-steps:
 #        - sherzberg/slack-notify:
 #            subdomain: packer
