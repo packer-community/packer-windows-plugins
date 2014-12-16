@@ -16,8 +16,6 @@ build:
         - script:
             name: gox build
             code: |
-                go get -u -v github.com/mitchellh/gox
-                sudo -E env PATH=$GOPATH/bin:$PATH gox -build-toolchain -os="linux darwin windows" -osarch="386 amd64"
                 XC_OS="linux darwin windows" XC_ARCH="386 amd64" make bin
         - tcnksm/zip:
             input: pkg
