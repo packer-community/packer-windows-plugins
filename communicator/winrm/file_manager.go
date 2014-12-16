@@ -29,12 +29,6 @@ type fileManager struct {
 
 const DEFAULT_HOST_IP_ADDRESS = "10.0.2.2"
 
-type webServer struct {
-	webServerIpAddress string
-	webServerPort      uint
-	webServer          *http.Server
-}
-
 func NewFileManager(comm packer.Communicator) (*fileManager, error) {
 	return &fileManager{comm: comm, webServerIpAddress: DEFAULT_HOST_IP_ADDRESS}, nil
 }
@@ -81,7 +75,7 @@ func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
 
 func (f *fileManager) UploadFile(dst string, src *os.File, server *http.Server) error {
 	winDest := winFriendlyPath(dst)
-	log.Printf("Uploading: %s ->%s", src.Name(), winDest)
+	log.Printf("Uploading: %s -> %s", src.Name(), winDest)
 
 	// Start the HTTP server and run it in the background
 	parts := strings.SplitN(server.Addr, ":", 2)
@@ -117,14 +111,19 @@ func (f *fileManager) Upload(dst string, input io.Reader) error {
 	return err
 }
 
-func (f *fileManager) UploadDir(dst string, src string) error {
+var uploadDir = func(f *fileManager, dst string, src string) error {
 	log.Printf("uploadDir to %s from %s", dst, src)
+
 	// We need these dirs later when walking files
 	f.guestUploadDir = dst
 	f.hostUploadDir = src
 
 	// Walk all files in the src directory on the host system
 	return filepath.Walk(src, f.uploadFileWalker)
+}
+
+func (f *fileManager) UploadDir(dst string, src string) error {
+	return uploadDir(f, dst, src)
 }
 
 //
@@ -181,12 +180,12 @@ func (f *fileManager) prepareFileDirectory(dst string) error {
 	log.Printf("Preparing directory for upload: %s", dst)
 
 	command := fmt.Sprintf(`
-	$dest_file_path = [System.IO.Path]::GetFullPath("%s")
-	if (-not (Test-Path $dest_file_path) ) {
-	  rm $dest_file_path
-	  Write-Output "Creating directory: $dest_file_path"
-	  md $dest_file_path -Force
-	}`, dst)
+$dest_file_path = [System.IO.Path]::GetFullPath("%s")
+if (-not (Test-Path $dest_file_path) ) {
+  rm $dest_file_path
+  Write-Output "Creating directory: $dest_file_path"
+  md $dest_file_path -Force
+}`, dst)
 
 	cmd := &packer.RemoteCmd{
 		Command: command,

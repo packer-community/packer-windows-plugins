@@ -89,7 +89,7 @@ func TestStartElevated(t *testing.T) {
 	}
 }
 
-func TestUpload(t *testing.T) {
+func TestRunningUpload(t *testing.T) {
 	// This test hits an already running Windows VM
 	// You can comment this line out temporarily during development
 	t.Skip()
@@ -111,7 +111,7 @@ func TestUpload(t *testing.T) {
 	}
 }
 
-func TestUploadDir(t *testing.T) {
+func TestRunningUploadDir(t *testing.T) {
 	// This test hits an already running Windows VM
 	// You can comment this line out temporarily during development
 	t.Skip()
