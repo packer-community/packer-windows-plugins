@@ -6,10 +6,10 @@ build:
             name: go get
             code: |
                 go get -t ./...
-        - script:
-            name: go test
-            code: |
-                make test
+#        - script:
+#            name: go test
+#            code: |
+#                make test
 #        - script:
 #            name: Publish Coveralls
 #            code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
@@ -17,6 +17,7 @@ build:
             name: gox build
             code: |
                 XC_OS="linux darwin windows" XC_ARCH="386 amd64" make bin
+                mkdir -p dist
         - tcnksm/zip:
             input: pkg
             output: dist
