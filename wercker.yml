@@ -32,8 +32,3 @@ deploy:
             token: $GITHUB_TOKEN
             input: dist
             replace: true
-    after-steps:
-        - sherzberg/slack-notify:
-            subdomain: packer
-            token: $SLACK_TOKEN
-            channel: "#builds"
