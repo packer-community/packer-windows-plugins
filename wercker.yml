@@ -14,8 +14,10 @@ build:
             name: Publish Coveralls
             code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
         - script:
-            name: build distributable binaries
+            name: gox build
             code: |
+                go get -u -v github.com/mitchellh/gox
+                sudo -E env PATH=$GOPATH/bin:$PATH gox -build-toolchain
                 make bin
         - tcnksm/zip:
             input: pkg
