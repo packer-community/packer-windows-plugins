@@ -13,8 +13,18 @@ build:
         - script:
             name: Publish Coveralls
             code: goveralls -service="wercker.com" -coverprofile=profile.cov -repotoken $COVERALLS_TOKEN
+        - tcnksm/zip:
+            input: ${WERCKER_OUTPUT_DIR}/pkg
+            output: ${WERCKER_OUTPUT_DIR}/dist
     after-steps:
         - sherzberg/slack-notify:
             subdomain: packer
             token: $SLACK_TOKEN
             channel: "#builds"
+
+deploy:
+  steps:
+    - tcnksm/ghr:
+        token: $GITHUB_TOKEN
+        input: dist
+        replace: true
