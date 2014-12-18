@@ -24,12 +24,16 @@ type fileManager struct {
 	guestUploadDir     string
 	hostUploadDir      string
 	webServerIpAddress string
+
+	// Stores references of file servers
+	// using the host directory as the key
+	servers map[string]*http.Server
 }
 
 const DEFAULT_HOST_IP_ADDRESS = "10.0.2.2"
 
 func NewFileManager(comm packer.Communicator) (*fileManager, error) {
-	return &fileManager{comm: comm, webServerIpAddress: DEFAULT_HOST_IP_ADDRESS}, nil
+	return &fileManager{comm: comm, webServerIpAddress: DEFAULT_HOST_IP_ADDRESS, servers: make(map[string]*http.Server)}, nil
 }
 
 // Get a WebServer to serve the given file in the host.
@@ -43,8 +47,13 @@ func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
 	var httpAddr string
 	portRange := 1000
 	var httpPort uint
+	uploadPath := path.Dir(uploadFile.Name())
+	if server, ok := f.servers[uploadPath]; ok {
+		log.Printf("Returning new HTTP server on port %d hosting files in dir %s", httpPort, path.Dir(uploadFile.Name()))
+		return server
+	}
 
-	log.Print("Looking for an available port...")
+	log.Print("Looking for an available port to return a new server...")
 	for {
 		var err error
 		var offset uint = 0
@@ -65,9 +74,10 @@ func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
 		}
 	}
 
-	log.Printf("Returning HTTP server on port %d hosting files in dir %s", httpPort, path.Dir(uploadFile.Name()))
-	fileServer := http.FileServer(http.Dir(path.Dir(uploadFile.Name())))
+	log.Printf("Returning new HTTP server on port %d hosting files in dir %s", httpPort, path.Dir(uploadFile.Name()))
+	fileServer := http.FileServer(http.Dir(uploadPath))
 	server := &http.Server{Addr: httpAddr, Handler: fileServer}
+	f.servers[uploadPath] = server
 
 	return server
 }
@@ -218,4 +228,8 @@ func (f *fileManager) TempFile(input io.Reader) (*os.File, error) {
 	}
 
 	return tmp, err
+}
+
+func (f *fileManager) foobar() {
+
 }

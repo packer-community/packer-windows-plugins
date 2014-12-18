@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -179,20 +180,54 @@ func TestUploadFileWalker_Fail(t *testing.T) {
 func TestUploadFileWalker(t *testing.T) {
 	comm := new(MockWinRMCommunicator)
 	fm := &fileManager{comm: comm}
-	tempString := "foobar"
-	input, err := ioutil.TempFile("/tmp", "packer-test-tmp")
-	fmt.Printf("Input name: %s", input.Name())
-	input.WriteString(tempString)
-	if err != nil {
-		t.Fatalf("Unable to create tmp file for test: %s", err)
-	}
 	hostFileInfo := new(MockFileInfo)
 	hostFileInfo.isDir = true
-
+	input, err := createTemporaryFileWithContents("/tmp")
 	// Upload a temporary file
 	err = fm.uploadFileWalker(input.Name(), hostFileInfo, nil)
 
 	if err != nil {
 		t.Fatalf("Should not have error: %s", err)
 	}
+}
+
+func TestGetHttpServer(t *testing.T) {
+	comm := new(MockWinRMCommunicator)
+	fm := &fileManager{comm: comm, servers: make(map[string]*http.Server)}
+	input, err := createTemporaryFileWithContents("/tmp")
+	if err != nil {
+		t.Fatalf("should not have error %s", err)
+	}
+
+	server1 := fm.getHttpServer(*input)
+	server2 := fm.getHttpServer(*input)
+	if server1.Addr != server2.Addr {
+		t.Fatalf("Server addresses should be equal")
+	}
+
+	if len(fm.servers) > 1 {
+		t.Fatalf("Should only have 1 running http server, %d found", len(fm.servers))
+	}
+
+	// Create in another directory, should create another server
+	input, err = createTemporaryFileWithContents("/tmp/packer")
+	server3 := fm.getHttpServer(*input)
+	if server1.Addr == server3.Addr {
+		t.Fatalf("Server addresses should not be equal")
+	}
+
+	if len(fm.servers) != 2 {
+		t.Fatalf("Should have 2 running http servers, %d found", len(fm.servers))
+	}
+}
+
+func createTemporaryFileWithContents(base string) (*os.File, error) {
+	tempString := "foobar"
+	input, err := ioutil.TempFile(base, "packer-test-tmp")
+	fmt.Printf("Input name: %s", input.Name())
+	input.WriteString(tempString)
+	if err != nil {
+		return input, err
+	}
+	return input, nil
 }
