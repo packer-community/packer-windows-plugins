@@ -57,13 +57,7 @@ func TestPrepareFileDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Should not have error: %s", err)
 	}
-	comm.expectedCommand = `
-$dest_file_path = [System.IO.Path]::GetFullPath("/foo")
-if (-not (Test-Path $dest_file_path) ) {
-  rm $dest_file_path
-  Write-Output "Creating directory: $dest_file_path"
-  md $dest_file_path -Force
-}`
+	comm.expectedCommand = `powershell -Command "& { md -Force $([System.IO.Path]::GetFullPath('/foo')) }"`
 	err = fm.prepareFileDirectory("/foo")
 	if err != nil {
 		t.Fatalf("Should not have error: %s", err)

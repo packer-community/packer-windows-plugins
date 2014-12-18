@@ -153,7 +153,7 @@ func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo
 	} else if hostFileInfo.IsDir() {
 		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 		log.Printf("Found a directory, preparing it: %s", relPath)
-		err = f.prepareFileDirectory(relPath)
+		err = f.prepareFileDirectory(filepath.Join(f.guestUploadDir, relPath))
 	}
 	return err
 }
@@ -183,13 +183,7 @@ func winFriendlyPath(path string) string {
 func (f *fileManager) prepareFileDirectory(dst string) error {
 	log.Printf("Preparing directory for upload: %s", dst)
 
-	command := fmt.Sprintf(`
-$dest_file_path = [System.IO.Path]::GetFullPath("%s")
-if (-not (Test-Path $dest_file_path) ) {
-  rm $dest_file_path
-  Write-Output "Creating directory: $dest_file_path"
-  md $dest_file_path -Force
-}`, dst)
+	command := fmt.Sprintf(`powershell -Command "& { md -Force $([System.IO.Path]::GetFullPath('%s')) }"`, dst)
 
 	err := f.runCommand(command)
 
