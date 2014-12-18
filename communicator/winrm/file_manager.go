@@ -73,6 +73,7 @@ func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
 }
 
 func (f *fileManager) UploadFile(dst string, src *os.File, server *http.Server) error {
+	log.Printf("Uploadfile: Raw dst: %s", dst)
 	winDest := winFriendlyPath(dst)
 	log.Printf("Uploading: %s -> %s", src.Name(), winDest)
 
@@ -112,7 +113,7 @@ func (f *fileManager) UploadDir(dst string, src string) error {
 
 	// We need these dirs later when walking files
 	f.guestUploadDir = dst
-	f.hostUploadDir = src
+	f.hostUploadDir, _ = filepath.Abs(src)
 
 	// Walk all files in the src directory on the host system
 	return filepath.Walk(src, f.uploadFileWalker)
@@ -134,6 +135,7 @@ func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo
 	// 3. ...repeat process recursively until all dirs have been created and files uploaded
 	// NOTE: Re-use the HTTP server - this may require some form of state
 
+	hostPath, _ = filepath.Abs(hostPath)
 	log.Printf("uploadFileWalker hostUploadDir: %s, hostpath: %s, hostFileInfo.name(): %s", f.hostUploadDir, hostPath, hostFileInfo.Name())
 	if err == nil && shouldUploadFile(hostFileInfo) {
 		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
@@ -151,9 +153,11 @@ func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo
 			return err
 		}
 	} else if hostFileInfo.IsDir() {
-		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
-		log.Printf("Found a directory, preparing it: %s", relPath)
-		err = f.prepareFileDirectory(filepath.Join(f.guestUploadDir, relPath))
+		// this is stripping paths. hmm....
+		relPath, _ := filepath.Rel(f.hostUploadDir, hostPath)
+		path := winFriendlyPath(filepath.Join(f.guestUploadDir, relPath))
+		log.Printf("Found a directory, preparing it: %s", path)
+		err = f.prepareFileDirectory(path)
 	}
 	return err
 }

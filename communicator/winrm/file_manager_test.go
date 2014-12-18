@@ -3,6 +3,7 @@ package winrm
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,12 +44,20 @@ func TestTempFile(t *testing.T) {
 	}
 }
 
-func testWinFriendlyPath(t *testing.T) {
-	in := "/foo/bar/baz"
+func TestWinFriendlyPath(t *testing.T) {
+	in := "c:/foo/bar/baz"
 	out := winFriendlyPath(in)
-	if out != "\\foo\\bar\\baz" {
+	if out != "c:\\foo\\bar\\baz" {
 		t.Fatalf("Path should be %s", out)
 	}
+	log.Printf("Winfriendly: %s", out)
+
+	in = "C:/Windows/Temp/DSC\\Index_files"
+	out = winFriendlyPath(in)
+	if out != "C:\\Windows\\Temp\\DSC\\Index_files" {
+		t.Fatalf("Path should be %s but is %s", "C:\\Windows\\Temp\\DSC\\Index_files", out)
+	}
+	log.Printf("Winfriendly: %s", out)
 }
 
 func TestPrepareFileDirectory(t *testing.T) {
@@ -64,6 +73,8 @@ func TestPrepareFileDirectory(t *testing.T) {
 	}
 
 }
+
+// TODO: Test relative paths
 
 func TestUploadDir_Error(t *testing.T) {
 	comm := new(MockWinRMCommunicatorWithErrors)
