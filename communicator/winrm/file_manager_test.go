@@ -1,17 +1,11 @@
 package winrm
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
-
-	//	"github.com/masterzen/winrm/winrm"
-	"github.com/mitchellh/packer/packer"
 )
 
 func TestTempFile(t *testing.T) {
@@ -76,9 +70,9 @@ if (-not (Test-Path $dest_file_path) ) {
 	}
 
 }
-func TestUploadDir(t *testing.T) {
-	comm := new(MockWinRMCommunicator)
-	comm.expectedCommand = "ppowershell Invoke-WebRequest 'http://10.0.2.2:8081/tmp' -OutFile c:\\windows\\temp\\tmp"
+
+func TestUploadDir_Error(t *testing.T) {
+	comm := new(MockWinRMCommunicatorWithErrors)
 
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
@@ -86,48 +80,114 @@ func TestUploadDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Should not have error: %s", err)
 	}
-	err = fm.UploadDir("c:\\windows\\temp", dir)
-	if err != nil {
-		t.Fatalf("Should not have error: %s", err)
-	}
 
-	// Error out the dir upload
-	var called bool
-	uploadDir = func(f *fileManager, dst string, src string) error {
-		called = true
-		return errors.New("Upload failed for test purposes")
-	}
 	err = fm.UploadDir("c:\\windows\\temp", dir)
-	if called == false {
-		t.Fatalf("Expected uploadDir to have been called")
-	}
 	if err == nil {
 		t.Fatalf("Should have error")
 	}
 }
 
-// Mock Default WinRM Communicator - does nothing at all
-type MockWinRMCommunicator struct {
-	hostUploadDir  string
-	guestUploadDir string
+func TestUploadDir_Success(t *testing.T) {
+	comm := new(MockWinRMCommunicator)
 
-	// Set this expectation before calling Start
-	//
-	expectedCommand string
-}
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-func (c *MockWinRMCommunicator) StartElevated(cmd *packer.RemoteCmd) (err error) { return nil }
-func (c *MockWinRMCommunicator) Start(cmd *packer.RemoteCmd) (err error) {
-	log.Printf("Starting remote command: %s", cmd.Command)
-	if cmd.Command != c.expectedCommand {
-		return errors.New(fmt.Sprintf("Expected command to be '%s' but got '%s'", c.expectedCommand, cmd.Command))
+	fm, err := NewFileManager(comm)
+	if err != nil {
+		t.Fatalf("Should not have error: %s", err)
 	}
-	return nil
+
+	// Upload
+	err = fm.UploadDir("c:\\windows\\temp", dir)
+	if err != nil {
+		t.Fatalf("Should not have error: %s", err)
+	}
 }
-func (c *MockWinRMCommunicator) runCommand(commandText string, cmd *packer.RemoteCmd) (err error) {
-	log.Printf("Running command: %s", commandText)
-	return nil
+
+func TestUpload_Success(t *testing.T) {
+	comm := new(MockWinRMCommunicator)
+
+	fileName, _ := filepath.Abs(os.Args[0])
+	file, err := os.Open(fileName)
+
+	fm, err := NewFileManager(comm)
+	if err != nil {
+		t.Fatalf("Should not have error: %s", err)
+	}
+
+	// Upload
+	err = fm.Upload("c:\\windows\\temp\\filename", file)
+	if err != nil {
+		t.Fatalf("Should not have error: %s", err)
+	}
 }
-func (c *MockWinRMCommunicator) Upload(string, io.Reader, *os.FileInfo) error             { return nil }
-func (c *MockWinRMCommunicator) UploadDir(dst string, src string, exclude []string) error { return nil }
-func (c *MockWinRMCommunicator) Download(string, io.Writer) error                         { return nil }
+func TestUpload_Fail(t *testing.T) {
+	comm := new(MockWinRMCommunicatorWithErrors)
+
+	fileName, _ := filepath.Abs(os.Args[0])
+	file, err := os.Open(fileName)
+
+	fm, err := NewFileManager(comm)
+	if err != nil {
+		t.Fatalf("Should not have error: %s", err)
+	}
+
+	// Upload
+	err = fm.Upload("c:\\windows\\temp\\filename", file)
+	if err == nil {
+		t.Fatalf("Should have error: %s", err)
+	}
+}
+
+func TestShouldUploadFile(t *testing.T) {
+	hostFileInfo := new(MockFileInfo)
+	hostFileInfo.isDir = true
+	if shouldUploadFile(hostFileInfo) != false {
+		t.Fatalf("Expected sholudUploadFile to be false when uploading a dir")
+	}
+	hostFileInfo.isDir = false
+	hostFileInfo.name = "foo"
+	if shouldUploadFile(hostFileInfo) == false {
+		t.Fatalf("Expected sholudUploadFile to be true when uploading a file")
+	}
+}
+
+func TestUploadFileWalker_Fail(t *testing.T) {
+	comm := new(MockWinRMCommunicator)
+	fm := &fileManager{comm: comm}
+	tempString := "foobar"
+	input, err := ioutil.TempFile("/tmp", "packer-test-tmp")
+	fmt.Printf("Input name: %s", input.Name())
+	input.WriteString(tempString)
+	if err != nil {
+		t.Fatalf("Unable to create tmp file for test: %s", err)
+	}
+	hostFileInfo := new(MockFileInfo)
+	hostFileInfo.name = "isurelymustnotexistforthisisasillyname"
+
+	// Upload a file that should not exist
+	err = fm.uploadFileWalker(hostFileInfo.Name(), hostFileInfo, nil)
+	if err == nil {
+		t.Fatalf("Should have error. %s should not exist", hostFileInfo.Name())
+	}
+}
+func TestUploadFileWalker(t *testing.T) {
+	comm := new(MockWinRMCommunicator)
+	fm := &fileManager{comm: comm}
+	tempString := "foobar"
+	input, err := ioutil.TempFile("/tmp", "packer-test-tmp")
+	fmt.Printf("Input name: %s", input.Name())
+	input.WriteString(tempString)
+	if err != nil {
+		t.Fatalf("Unable to create tmp file for test: %s", err)
+	}
+	hostFileInfo := new(MockFileInfo)
+	hostFileInfo.isDir = true
+
+	// Upload a temporary file
+	err = fm.uploadFileWalker(input.Name(), hostFileInfo, nil)
+
+	if err != nil {
+		t.Fatalf("Should not have error: %s", err)
+	}
+}

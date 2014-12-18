@@ -2,7 +2,6 @@ package winrm
 
 import (
 	"bufio"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -89,10 +88,7 @@ func (f *fileManager) UploadFile(dst string, src *os.File, server *http.Server) 
 	downloadCommand := fmt.Sprintf("powershell Invoke-WebRequest 'http://%s:%s/%s' -OutFile %s", f.webServerIpAddress, port, path.Base(src.Name()), winDest)
 	log.Printf("Executing download command: %s", downloadCommand)
 
-	cmd := &packer.RemoteCmd{
-		Command: downloadCommand,
-	}
-	err := f.comm.Start(cmd)
+	err := f.runCommand(downloadCommand)
 	return err
 }
 
@@ -106,13 +102,13 @@ func (f *fileManager) Upload(dst string, input io.Reader) error {
 	}
 
 	server := f.getHttpServer(*tmp)
-	f.UploadFile(dst, tmp, server)
+	err = f.UploadFile(dst, tmp, server)
 
 	return err
 }
 
-var uploadDir = func(f *fileManager, dst string, src string) error {
-	log.Printf("uploadDir to %s from %s", dst, src)
+func (f *fileManager) UploadDir(dst string, src string) error {
+	log.Printf("Uploading dir to %s from %s", dst, src)
 
 	// We need these dirs later when walking files
 	f.guestUploadDir = dst
@@ -120,10 +116,6 @@ var uploadDir = func(f *fileManager, dst string, src string) error {
 
 	// Walk all files in the src directory on the host system
 	return filepath.Walk(src, f.uploadFileWalker)
-}
-
-func (f *fileManager) UploadDir(dst string, src string) error {
-	return uploadDir(f, dst, src)
 }
 
 //
@@ -134,6 +126,14 @@ func (f *fileManager) UploadDir(dst string, src string) error {
 //   	- baz.txt
 //   - bro.txt
 func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo, err error) error {
+
+	// Game plan:
+	//
+	// 1. if it's a file and should be uploaded, upload file
+	// 2. if it's a dir, create it first on the client
+	// 3. ...repeat process recursively until all dirs have been created and files uploaded
+	// NOTE: Re-use the HTTP server - this may require some form of state
+
 	log.Printf("uploadFileWalker hostUploadDir: %s, hostpath: %s, hostFileInfo.name(): %s", f.hostUploadDir, hostPath, hostFileInfo.Name())
 	if err == nil && shouldUploadFile(hostFileInfo) {
 		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
@@ -146,10 +146,14 @@ func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo
 		}
 		server := f.getHttpServer(*hostFile)
 		err = f.UploadFile(guestPath, hostFile, server)
+		if err != nil {
+			log.Printf("Unable to upload file %s to path %s, error: ", hostPath, err)
+			return err
+		}
 	} else if hostFileInfo.IsDir() {
 		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 		log.Printf("Found a directory, preparing it: %s", relPath)
-		f.prepareFileDirectory(relPath)
+		err = f.prepareFileDirectory(relPath)
 	}
 	return err
 }
@@ -187,11 +191,7 @@ if (-not (Test-Path $dest_file_path) ) {
   md $dest_file_path -Force
 }`, dst)
 
-	cmd := &packer.RemoteCmd{
-		Command: command,
-	}
-
-	err := f.comm.Start(cmd)
+	err := f.runCommand(command)
 
 	return err
 }
@@ -199,25 +199,6 @@ if (-not (Test-Path $dest_file_path) ) {
 func shouldUploadFile(hostFile os.FileInfo) bool {
 	// Ignore dir entries and OS X special hidden file
 	return !hostFile.IsDir() && ".DS_Store" != hostFile.Name()
-}
-
-func encodeChunks(bytes []byte, chunkSize int) []string {
-	text := base64.StdEncoding.EncodeToString(bytes)
-	reader := strings.NewReader(text)
-
-	var chunks []string
-	chunk := make([]byte, chunkSize)
-
-	for {
-		n, _ := reader.Read(chunk)
-		if n == 0 {
-			break
-		}
-
-		chunks = append(chunks, string(chunk[:n]))
-	}
-
-	return chunks
 }
 
 func (f *fileManager) TempFile(input io.Reader) (*os.File, error) {
