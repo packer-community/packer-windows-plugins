@@ -49,7 +49,7 @@ func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
 	var httpPort uint
 	uploadPath := path.Dir(uploadFile.Name())
 	if server, ok := f.servers[uploadPath]; ok {
-		log.Printf("Returning new HTTP server on port %d hosting files in dir %s", httpPort, path.Dir(uploadFile.Name()))
+		log.Printf("Returning existing HTTP server with address %s hosting files in dir %s", server.Addr, path.Dir(uploadFile.Name()))
 		return server
 	}
 
@@ -228,8 +228,4 @@ func (f *fileManager) TempFile(input io.Reader) (*os.File, error) {
 	}
 
 	return tmp, err
-}
-
-func (f *fileManager) foobar() {
-
 }
