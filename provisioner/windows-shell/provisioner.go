@@ -16,6 +16,8 @@ import (
 
 const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
 
+var retryableSleep = 2 * time.Second
+
 type config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
@@ -194,6 +196,9 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	ui.Say(fmt.Sprintf("Provisioning with windows-shell..."))
 
+	// TODO: As per docs (https://www.packer.io/docs/provisioners/shell.html#inline)
+	//       these should be concatenated into a script and executed in the same manner
+	//       as the `scripts` below. Perhaps create a temp file and add to the array below
 	for _, command := range p.config.Inline {
 		log.Printf("Running inline command: %s", command)
 		translatedCommand := command
@@ -233,14 +238,14 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		defer f.Close()
 
 		// Create environment variables to set before executing the command
-		// flattendVars, err := p.createFlattenedEnvVars()
-		// if err != nil {
-		// 	return err
-		// }
+		flattendVars, err := p.createFlattenedEnvVars()
+		if err != nil {
+			return err
+		}
 
 		// Compile the command
 		command, err := p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
-			Vars: "",
+			Vars: flattendVars,
 			Path: p.config.RemotePath,
 		})
 		if err != nil {
@@ -307,7 +312,7 @@ func (p *Provisioner) retryable(f func() error) error {
 		case <-startTimeout:
 			return err
 		default:
-			time.Sleep(2 * time.Second)
+			time.Sleep(retryableSleep)
 		}
 	}
 }
