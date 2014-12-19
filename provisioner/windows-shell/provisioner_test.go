@@ -35,8 +35,8 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 		t.Errorf("unexpected remote path: %s", p.config.RemotePath)
 	}
 
-	if p.config.ExecuteCommand != "{{.Vars}} powershell -Command {{.Path}}" {
-		t.Fatalf("Default command should be '{{.Vars}} powershell -Command {{.Path}}'")
+	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}} }\"" {
+		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}} }\", but got %s", p.config.ExecuteCommand)
 	}
 }
 
@@ -275,7 +275,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	if flattenedEnvVars != "powershell -Command \"$env:PACKER_BUILDER_TYPE='iso'\"; powershell -Command \"$env:PACKER_BUILD_NAME='vmware'\"; " {
+	if flattenedEnvVars != "$env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
 		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 
@@ -286,7 +286,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	if flattenedEnvVars != "powershell -Command \"$env:FOO='bar'\"; powershell -Command \"$env:PACKER_BUILDER_TYPE='iso'\"; powershell -Command \"$env:PACKER_BUILD_NAME='vmware'\"; " {
+	if flattenedEnvVars != "$env:FOO=\\\"bar\\\"; $env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
 		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 
@@ -297,7 +297,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	if flattenedEnvVars != "powershell -Command \"$env:BAZ='qux'\"; powershell -Command \"$env:FOO='bar'\"; powershell -Command \"$env:PACKER_BUILDER_TYPE='iso'\"; powershell -Command \"$env:PACKER_BUILD_NAME='vmware'\"; " {
+	if flattenedEnvVars != "$env:BAZ=\\\"qux\\\"; $env:FOO=\\\"bar\\\"; $env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
 		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 }
