@@ -114,15 +114,22 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 }
 
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
-	fm := &fileManager{
-		comm: c,
+	log.Println("Uploading with the HTTP Server")
+
+	fm, err := NewFileManager(c)
+	if err != nil {
+		log.Printf("Unable to create File Manager: %s", err)
+		return err
 	}
+
 	return fm.Upload(dst, input)
 }
 
 func (c *Communicator) UploadDir(dst string, src string, excl []string) error {
-	fm := &fileManager{
-		comm: c,
+	fm, err := NewFileManager(c)
+	if err != nil {
+		log.Printf("Unable to create File Manager: %s", err)
+		return err
 	}
 	return fm.UploadDir(dst, src)
 }

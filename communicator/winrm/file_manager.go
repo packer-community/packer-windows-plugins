@@ -1,102 +1,173 @@
 package winrm
 
 import (
-	"encoding/base64"
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
+	"net"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
-	"github.com/masterzen/winrm/winrm"
-	"github.com/mitchellh/packer/common/uuid"
 	"github.com/mitchellh/packer/packer"
 )
 
 type fileManager struct {
-	comm           *Communicator
-	guestUploadDir string
-	hostUploadDir  string
+	comm               packer.Communicator
+	server             *http.Server
+	guestUploadDir     string
+	hostUploadDir      string
+	webServerIpAddress string
+
+	// Stores references of file servers
+	// using the host directory as the key
+	servers map[string]*http.Server
 }
 
-func (f *fileManager) UploadFile(dst string, src string) error {
-	winDest := winFriendlyPath(dst)
-	log.Printf("Uploading: %s ->%s", src, winDest)
+const DEFAULT_HOST_IP_ADDRESS = "10.0.2.2"
 
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-	return f.Upload(winDest, srcFile)
+func NewFileManager(comm packer.Communicator) (*fileManager, error) {
+	return &fileManager{comm: comm, webServerIpAddress: DEFAULT_HOST_IP_ADDRESS, servers: make(map[string]*http.Server)}, nil
 }
 
-func (f *fileManager) Upload(dst string, input io.Reader) error {
-	guestFileName := fmt.Sprintf("winrm-upload-%s.tmp", uuid.TimeOrderedUUID())
-
-	// Paths to the file, one for cmd.exe and the other for PowerShell
-	cmdGuestFilePath := fmt.Sprintf("%%TEMP%%\\%s", guestFileName)
-	psGuestFilePath := fmt.Sprintf("$env:TEMP\\%s", guestFileName)
-
-	// Upload the file in chunks to get around the Windows command line size limit
-	bytes, err := ioutil.ReadAll(input)
-	if err != nil {
-		return err
+// Get a WebServer to serve the given file in the host.
+//
+// Provides:
+//
+//	int	The listen port of the server
+//  http.server A reference to the Server to run
+func (f *fileManager) getHttpServer(uploadFile os.File) *http.Server {
+	// Find an available TCP port for our HTTP server
+	var httpAddr string
+	portRange := 1000
+	var httpPort uint
+	uploadPath := path.Dir(uploadFile.Name())
+	if server, ok := f.servers[uploadPath]; ok {
+		log.Printf("Returning existing HTTP server with address %s hosting files in dir %s", server.Addr, path.Dir(uploadFile.Name()))
+		return server
 	}
 
-	log.Printf("uploading to temporary file: %s", cmdGuestFilePath)
-	for _, chunk := range encodeChunks(bytes, 8000-len(cmdGuestFilePath)) {
-		err = f.runCommand(fmt.Sprintf("echo %s >> \"%s\"", chunk, cmdGuestFilePath))
-		if err != nil {
-			return err
+	log.Print("Looking for an available port to return a new server...")
+	for {
+		var err error
+		var offset uint = 0
+
+		if portRange > 0 {
+			// Intn will panic if portRange == 0, so we do a check.
+			offset = uint(rand.Intn(portRange))
+		}
+
+		httpPort = offset + 8000
+		httpAddr = fmt.Sprintf(":%d", httpPort)
+		log.Printf("Trying port: %d", httpPort)
+		l, err := net.Listen("tcp", httpAddr)
+		if err == nil {
+			// Free port. TODO: Maybe pass the listener around instead
+			l.Close()
+			break
 		}
 	}
 
-	// Move the file to its permanent location and decode
-	log.Printf("moving file to destination: %s", dst)
-	err = f.runCommand(winrm.Powershell(fmt.Sprintf(`
-    $tmp_file_path = [System.IO.Path]::GetFullPath("%s")
-    $dest_file_path = [System.IO.Path]::GetFullPath("%s")
+	log.Printf("Returning new HTTP server on port %d hosting files in dir %s", httpPort, path.Dir(uploadFile.Name()))
+	fileServer := http.FileServer(http.Dir(uploadPath))
+	server := &http.Server{Addr: httpAddr, Handler: fileServer}
+	f.servers[uploadPath] = server
 
-    if (Test-Path $dest_file_path) {
-      rm $dest_file_path
-    }
-    else {
-      $dest_dir = ([System.IO.Path]::GetDirectoryName($dest_file_path))
-      New-Item -ItemType directory -Force -ErrorAction SilentlyContinue -Path $dest_dir
-    }
+	return server
+}
 
-    if (Test-Path $tmp_file_path) {
-			$base64_lines = Get-Content $tmp_file_path
-    	$base64_string = [string]::join("",$base64_lines)
-   		$bytes = [System.Convert]::FromBase64String($base64_string) 
-    	[System.IO.File]::WriteAllBytes($dest_file_path, $bytes)
-    	Remove-Item $tmp_file_path -Force -ErrorAction SilentlyContinue
-    } else {
-    	echo $null > $dest_file_path
-    }
-  `, psGuestFilePath, dst)))
+func (f *fileManager) UploadFile(dst string, src *os.File, server *http.Server) error {
+	log.Printf("Uploadfile: Raw dst: %s", dst)
+	winDest := winFriendlyPath(dst)
+	log.Printf("Uploading: %s -> %s", src.Name(), winDest)
+
+	// Start the HTTP server and run it in the background
+	parts := strings.SplitN(server.Addr, ":", 2)
+	port := parts[1]
+	go server.ListenAndServe()
+
+	// Pull down file via remote command
+	log.Printf("Uploading \"%s\"with the HTTP Server on ip %s and port %s with path %s", src.Name(), f.webServerIpAddress, port, winDest)
+	//downloadCommand := fmt.Sprintf("powershell -Command \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), winDest)
+	//downloadCommand := fmt.Sprintf("powershell \"iex ((new-object net.webclient).DownloadFile('http://%s:%d/%s', '%s'))\"", ipAddress, httpPort, path.Base(tmp.Name()), winDest)
+	downloadCommand := fmt.Sprintf("powershell Invoke-WebRequest 'http://%s:%s/%s' -OutFile %s", f.webServerIpAddress, port, path.Base(src.Name()), winDest)
+	log.Printf("Executing download command: %s", downloadCommand)
+
+	err := f.runCommand(downloadCommand)
+	return err
+}
+
+func (f *fileManager) Upload(dst string, input io.Reader) error {
+
+	// Copy file to local temp file
+	tmp, err := f.TempFile(input)
+	if err != nil {
+		log.Print("Error creating temporary upload of file: %s", err)
+		return err
+	}
+
+	server := f.getHttpServer(*tmp)
+	err = f.UploadFile(dst, tmp, server)
 
 	return err
 }
 
 func (f *fileManager) UploadDir(dst string, src string) error {
+	log.Printf("Uploading dir to %s from %s", dst, src)
+
 	// We need these dirs later when walking files
 	f.guestUploadDir = dst
-	f.hostUploadDir = src
+	f.hostUploadDir, _ = filepath.Abs(src)
 
 	// Walk all files in the src directory on the host system
-	return filepath.Walk(src, f.walkFile)
+	return filepath.Walk(src, f.uploadFileWalker)
 }
 
-func (f *fileManager) walkFile(hostPath string, hostFileInfo os.FileInfo, err error) error {
+//
+// /tmp/foo/
+//   - bar.txt
+//   - bat/
+//   	- bat.txt
+//   	- baz.txt
+//   - bro.txt
+func (f *fileManager) uploadFileWalker(hostPath string, hostFileInfo os.FileInfo, err error) error {
+
+	// Game plan:
+	//
+	// 1. if it's a file and should be uploaded, upload file
+	// 2. if it's a dir, create it first on the client
+	// 3. ...repeat process recursively until all dirs have been created and files uploaded
+	// NOTE: Re-use the HTTP server - this may require some form of state
+
+	hostPath, _ = filepath.Abs(hostPath)
+	log.Printf("uploadFileWalker hostUploadDir: %s, hostpath: %s, hostFileInfo.name(): %s", f.hostUploadDir, hostPath, hostFileInfo.Name())
 	if err == nil && shouldUploadFile(hostFileInfo) {
 		relPath := filepath.Dir(hostPath[len(f.hostUploadDir):len(hostPath)])
 		guestPath := filepath.Join(f.guestUploadDir, relPath, hostFileInfo.Name())
-		err = f.UploadFile(guestPath, hostPath)
+		hostFile, err := os.Open(hostPath)
+		defer hostFile.Close()
+		if err != nil {
+			log.Printf("Unable to open source file %s for upload: %s", hostPath, err)
+			return err
+		}
+		server := f.getHttpServer(*hostFile)
+		err = f.UploadFile(guestPath, hostFile, server)
+		if err != nil {
+			log.Printf("Unable to upload file %s to path %s, error: ", hostPath, err)
+			return err
+		}
+	} else if hostFileInfo.IsDir() {
+		// this is stripping paths. hmm....
+		relPath, _ := filepath.Rel(f.hostUploadDir, hostPath)
+		path := winFriendlyPath(filepath.Join(f.guestUploadDir, relPath))
+		log.Printf("Found a directory, preparing it: %s", path)
+		err = f.prepareFileDirectory(path)
 	}
 	return err
 }
@@ -106,7 +177,7 @@ func (f *fileManager) runCommand(cmd string) error {
 		Command: cmd,
 	}
 
-	err := f.comm.runCommand(cmd, remoteCmd)
+	err := f.comm.Start(remoteCmd)
 	if err != nil {
 		return err
 	}
@@ -123,26 +194,38 @@ func winFriendlyPath(path string) string {
 	return strings.Replace(path, "/", "\\", -1)
 }
 
+func (f *fileManager) prepareFileDirectory(dst string) error {
+	log.Printf("Preparing directory for upload: %s", dst)
+
+	command := fmt.Sprintf(`powershell -Command "& { md -Force $([System.IO.Path]::GetFullPath('%s')) }"`, dst)
+
+	err := f.runCommand(command)
+
+	return err
+}
+
 func shouldUploadFile(hostFile os.FileInfo) bool {
 	// Ignore dir entries and OS X special hidden file
 	return !hostFile.IsDir() && ".DS_Store" != hostFile.Name()
 }
 
-func encodeChunks(bytes []byte, chunkSize int) []string {
-	text := base64.StdEncoding.EncodeToString(bytes)
-	reader := strings.NewReader(text)
+func (f *fileManager) TempFile(input io.Reader) (*os.File, error) {
+	httpDir := "/tmp"
+	tmp, err := ioutil.TempFile(httpDir, "packer-tmp")
 
-	var chunks []string
-	chunk := make([]byte, chunkSize)
+	defer func() {
+		tmp.Close()
+	}()
 
+	r := bufio.NewReader(input)
+	b := make([]byte, 1024)
 	for {
-		n, _ := reader.Read(chunk)
-		if n == 0 {
+		_, err := r.Read(b)
+		if err == io.EOF {
 			break
 		}
-
-		chunks = append(chunks, string(chunk[:n]))
+		tmp.Write(b)
 	}
 
-	return chunks
+	return tmp, err
 }

@@ -89,7 +89,7 @@ func TestStartElevated(t *testing.T) {
 	}
 }
 
-func TestUpload(t *testing.T) {
+func TestRunningUpload(t *testing.T) {
 	// This test hits an already running Windows VM
 	// You can comment this line out temporarily during development
 	t.Skip()
@@ -111,7 +111,7 @@ func TestUpload(t *testing.T) {
 	}
 }
 
-func TestUploadDir(t *testing.T) {
+func TestRunningUploadDir(t *testing.T) {
 	// This test hits an already running Windows VM
 	// You can comment this line out temporarily during development
 	t.Skip()
@@ -155,4 +155,12 @@ func TestISO8601DurationString(t *testing.T) {
 	if s != "PT0S" {
 		t.Fatalf("bad ISO 8601 duration string for negative: %s", s)
 	}
+}
+
+func defaultCommunicator() *Communicator {
+	comm, err := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
+	if err != nil {
+		fmt.Sprintf("Could not create Communicator: %s", err)
+	}
+	return comm
 }
