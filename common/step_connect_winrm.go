@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	plugin "github.com/dylanmei/packer-communicator-winrm/communicator/winrm"
 	"github.com/masterzen/winrm/winrm"
 	"github.com/mitchellh/multistep"
 	"github.com/mitchellh/packer/packer"
+	plugin "github.com/packer-community/packer-windows-plugins/communicator/winrm"
 )
 
 // StepConnectWinRM is a multistep Step implementation that waits for WinRM
