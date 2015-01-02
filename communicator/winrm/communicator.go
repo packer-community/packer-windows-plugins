@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dylanmei/winrmfs/winrmfs"
+	"github.com/packer-community/winrmcp/winrmcp"
 	"github.com/masterzen/winrm/winrm"
 	"github.com/mitchellh/packer/packer"
 )
@@ -111,13 +111,13 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 }
 
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
-	fs := winrmfs.New(c.client)
-	return fs.Write(dst, input)
+	cp := winrmcp.New(c.client)
+	return cp.Write(dst, input)
 }
 
 func (c *Communicator) UploadDir(dst string, src string, TODO []string) error {
-	fs := winrmfs.New(c.client)
-	return fs.Copy(src, dst)
+	cp := winrmcp.New(c.client)
+	return cp.Copy(src, dst)
 }
 
 func (c *Communicator) Download(string, io.Writer) error {
