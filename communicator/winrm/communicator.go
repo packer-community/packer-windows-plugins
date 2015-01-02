@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanmei/winrmfs/winrmfs"
 	"github.com/masterzen/winrm/winrm"
 	"github.com/mitchellh/packer/packer"
 )
@@ -29,7 +30,6 @@ type elevatedShellOptions struct {
 // Creates a new packer.Communicator implementation over WinRM.
 // Called when Packer tries to connect to WinRM
 func New(endpoint *winrm.Endpoint, user string, password string, timeout time.Duration) (*Communicator, error) {
-
 	// Create the WinRM client we use internally
 	params := winrm.DefaultParameters()
 	params.Timeout = ISO8601DurationString(timeout)
@@ -59,7 +59,7 @@ func (c *Communicator) Start(cmd *packer.RemoteCmd) (err error) {
 	// TODO: Can we only run as Elevated if specified in config/setting.
 	// It's fairly slow. It also doesn't work see Issue #1
 	//return c.StartElevated(cmd)
-	return c.StartUnelevated(cmd)
+	return c.runCommand(cmd.Command, cmd)
 }
 
 func (c *Communicator) StartElevated(cmd *packer.RemoteCmd) (err error) {
@@ -96,12 +96,9 @@ func (c *Communicator) StartElevated(cmd *packer.RemoteCmd) (err error) {
 	return c.runCommand(command, cmd)
 }
 
-func (c *Communicator) StartUnelevated(cmd *packer.RemoteCmd) (err error) {
-	log.Printf("starting remote command: %s", cmd.Command)
-	return c.runCommand(cmd.Command, cmd)
-}
-
 func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (err error) {
+	log.Printf("starting remote command: %s", cmd.Command)
+
 	// Create a new shell process on the guest
 	err = c.client.RunWithInput(commandText, os.Stdout, os.Stderr, os.Stdin)
 	if err != nil {
@@ -114,17 +111,13 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 }
 
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
-	fm := &fileManager{
-		comm: c,
-	}
-	return fm.Upload(dst, input)
+	fs := winrmfs.New(c.client)
+	return fs.Write(dst, input)
 }
 
-func (c *Communicator) UploadDir(dst string, src string, excl []string) error {
-	fm := &fileManager{
-		comm: c,
-	}
-	return fm.UploadDir(dst, src)
+func (c *Communicator) UploadDir(dst string, src string, TODO []string) error {
+	fs := winrmfs.New(c.client)
+	return fs.Copy(src, dst)
 }
 
 func (c *Communicator) Download(string, io.Writer) error {
