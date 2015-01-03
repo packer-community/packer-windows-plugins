@@ -37,9 +37,9 @@ With [Go 1.2+](http://golang.org) installed, follow these steps to use these com
   - The current working directory.
 1. Change to a directory where you have packer templates, and run as usual.
   
-#### A simple packer template
+#### A simple Packer template
   
-The simplest packer template for Windows, which utilizes the `virtualbox-windows-iso` builder and `winrm` communicator plugins, will look something like
+A simple Packer template for Windows, which utilizes the `virtualbox-windows-iso` builder and `winrm` communicator plugins, will look something like
   
 <pre>
   {
@@ -59,14 +59,28 @@ The simplest packer template for Windows, which utilizes the `virtualbox-windows
       "disk_size": 61440,
       "format": "ova",
       "floppy_files": [
-      "./Autounattend.xml",
-      "./winrm.bat",
-      ],
-      "vboxmanage": [
-      [ "modifyvm", "{{.Name}}", "--memory", "2048" ],
+        "./Autounattend.xml",
+        "./enable-winrm.bat",
       ]
-      }],
-    }
+    }],
+    "provisioners": [{
+      "type": "windows-shell",
+      "scripts": [
+        "scripts/chocolatey.ps1"
+      ]
+    }, {
+      "type": "windows-shell",
+      "inline": [
+        "choco install 7zip",
+        "choco install dotnet4.5.2"
+      ]
+    }],
+    "post-processors": [{
+      "type": "vagrant",
+      "output": "windows_2012_r2_virtualbox.box",
+      "vagrantfile_template": "Vagrantfile.template"
+    }]
+  }
 </pre>
     
 Check out these projects for more detailed examples of Windows-centric Packer templates:
