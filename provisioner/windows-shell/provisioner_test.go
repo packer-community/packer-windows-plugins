@@ -2,10 +2,14 @@ package shell
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"github.com/mitchellh/packer/packer"
 	"io/ioutil"
+	"log"
 	"os"
 	"testing"
+	"time"
 )
 
 func testConfig() map[string]interface{} {
@@ -35,8 +39,8 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 		t.Errorf("unexpected remote path: %s", p.config.RemotePath)
 	}
 
-	if p.config.ExecuteCommand != "{{.Vars}} powershell -Command {{.Path}}" {
-		t.Fatalf("Default command should be '{{.Vars}} powershell -Command {{.Path}}'")
+	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}} }\"" {
+		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}} }\", but got %s", p.config.ExecuteCommand)
 	}
 }
 
@@ -227,28 +231,98 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 	config := testConfig()
 	delete(config, "inline")
 	config["scripts"] = []string{}
+	config["inline"] = "powershell -command Foo-Command"
 	ui := testUi()
 
 	p := new(Provisioner)
 	comm := new(packer.MockCommunicator)
 	p.Prepare(config)
 	err := p.Provision(ui, comm)
-
-	// Should create a remote command from
-
 	if err != nil {
 		t.Fatal("should not have error")
 	}
 
+	// Should run the command without alteration
+	if comm.StartCmd.Command != config["inline"] {
+		t.Fatalf("Expect command not to be: %s", comm.StartCmd.Command)
+	}
+
+	// Env vars - currently should not effect them
+	envVars := make([]string, 2)
+	envVars[0] = "FOO=BAR"
+	envVars[1] = "BAR=BAZ"
+	config["Vars"] = envVars
+
+	p.Prepare(config)
+	err = p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
+
+	// Should run the command without alteration
+	if comm.StartCmd.Command != config["inline"] {
+		t.Fatalf("Expect command not to be: %s", comm.StartCmd.Command)
+	}
 }
 
 func TestProvisionerProvision_Scripts(t *testing.T) {
+	tempFile, _ := ioutil.TempFile("", "packer")
+	defer os.Remove(tempFile.Name())
+	config := testConfig()
+	delete(config, "inline")
+	config["scripts"] = []string{tempFile.Name()}
+	config["packer_build_name"] = "foobuild"
+	config["packer_builder_type"] = "footype"
+	ui := testUi()
 
-	// Create n scripts
+	p := new(Provisioner)
+	comm := new(packer.MockCommunicator)
+	p.Prepare(config)
+	err := p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
 
-	// Should execute them in order from 1-n
+	//powershell -Command "$env:PACKER_BUILDER_TYPE=''"; powershell -Command "$env:PACKER_BUILD_NAME='foobuild'";  powershell -Command c:/Windows/Temp/script.ps1
+	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1 }"`
 
-	// Should invoke 'runcommand' / 'Start'
+	// Should run the command without alteration
+	if comm.StartCmd.Command != expectedCommand {
+		t.Fatalf("Expect command to be %s NOT %s", expectedCommand, comm.StartCmd.Command)
+	}
+}
+
+func TestProvisionerProvision_ScriptsWithEnvVars(t *testing.T) {
+	tempFile, _ := ioutil.TempFile("", "packer")
+	config := testConfig()
+	ui := testUi()
+	defer os.Remove(tempFile.Name())
+	delete(config, "inline")
+
+	config["scripts"] = []string{tempFile.Name()}
+	config["packer_build_name"] = "foobuild"
+	config["packer_builder_type"] = "footype"
+
+	// Env vars - currently should not effect them
+	envVars := make([]string, 2)
+	envVars[0] = "FOO=BAR"
+	envVars[1] = "BAR=BAZ"
+	config["environment_vars"] = envVars
+
+	p := new(Provisioner)
+	comm := new(packer.MockCommunicator)
+	p.Prepare(config)
+	err := p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
+
+	expectedCommand := `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1 }"`
+
+	// Should run the command without alteration
+	if comm.StartCmd.Command != expectedCommand {
+		t.Fatalf("Expect command to be %s NOT %s", expectedCommand, comm.StartCmd.Command)
+	}
 }
 
 func TestProvisionerProvision_UISlurp(t *testing.T) {
@@ -275,7 +349,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	if flattenedEnvVars != "powershell -Command \"$env:PACKER_BUILDER_TYPE='iso'\"; powershell -Command \"$env:PACKER_BUILD_NAME='vmware'\"; " {
+	if flattenedEnvVars != "$env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
 		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 
@@ -286,7 +360,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	if flattenedEnvVars != "powershell -Command \"$env:FOO='bar'\"; powershell -Command \"$env:PACKER_BUILDER_TYPE='iso'\"; powershell -Command \"$env:PACKER_BUILD_NAME='vmware'\"; " {
+	if flattenedEnvVars != "$env:FOO=\\\"bar\\\"; $env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
 		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 
@@ -297,7 +371,42 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	if flattenedEnvVars != "powershell -Command \"$env:BAZ='qux'\"; powershell -Command \"$env:FOO='bar'\"; powershell -Command \"$env:PACKER_BUILDER_TYPE='iso'\"; powershell -Command \"$env:PACKER_BUILD_NAME='vmware'\"; " {
+	if flattenedEnvVars != "$env:BAZ=\\\"qux\\\"; $env:FOO=\\\"bar\\\"; $env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
 		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
+}
+
+func TestRetryable(t *testing.T) {
+	config := testConfig()
+
+	count := 0
+	retryMe := func() error {
+		log.Printf("RetryMe, attempt number %d", count)
+		if count == 2 {
+			return nil
+		}
+		count++
+		return errors.New(fmt.Sprintf("Still waiting %d more times...", 2-count))
+	}
+	retryableSleep = 50 * time.Millisecond
+	p := new(Provisioner)
+	p.config.RawStartRetryTimeout = "155ms"
+	err := p.Prepare(config)
+	err = p.retryable(retryMe)
+	if err != nil {
+		t.Fatalf("should not have error retrying funuction")
+	}
+
+	count = 0
+	p.config.RawStartRetryTimeout = "10ms"
+	err = p.Prepare(config)
+	err = p.retryable(retryMe)
+	if err == nil {
+		t.Fatalf("should have error retrying funuction")
+	}
+}
+
+func TestCancel(t *testing.T) {
+	p := new(Provisioner)
+	p.Cancel()
 }

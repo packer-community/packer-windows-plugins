@@ -16,6 +16,8 @@ import (
 
 const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
 
+var retryableSleep = 2 * time.Second
+
 type config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
@@ -51,6 +53,10 @@ type config struct {
 	// This can be set high to allow for reboots.
 	RawStartRetryTimeout string `mapstructure:"start_retry_timeout"`
 
+	// This is used in the template generation to format environment variables
+	// inside the `ExecuteCommand` template.
+	EnvVarFormat string
+
 	startRetryTimeout time.Duration
 	tpl               *packer.ConfigTemplate
 }
@@ -79,8 +85,12 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	// Accumulate any errors
 	errs := common.CheckUnusedConfig(md)
 
+	if p.config.EnvVarFormat == "" {
+		p.config.EnvVarFormat = `$env:%s=\"%s\"; `
+	}
+
 	if p.config.ExecuteCommand == "" {
-		p.config.ExecuteCommand = "{{.Vars}} powershell -Command {{.Path}}"
+		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}} }"`
 	}
 
 	if p.config.Inline != nil && len(p.config.Inline) == 0 {
@@ -186,6 +196,9 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	ui.Say(fmt.Sprintf("Provisioning with windows-shell..."))
 
+	// TODO: As per docs (https://www.packer.io/docs/provisioners/shell.html#inline)
+	//       these should be concatenated into a script and executed in the same manner
+	//       as the `scripts` below. Perhaps create a temp file and add to the array below
 	for _, command := range p.config.Inline {
 		log.Printf("Running inline command: %s", command)
 		translatedCommand := command
@@ -225,14 +238,14 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		defer f.Close()
 
 		// Create environment variables to set before executing the command
-		// flattendVars, err := p.createFlattenedEnvVars()
-		// if err != nil {
-		// 	return err
-		// }
+		flattendVars, err := p.createFlattenedEnvVars()
+		if err != nil {
+			return err
+		}
 
 		// Compile the command
 		command, err := p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
-			Vars: "",
+			Vars: flattendVars,
 			Path: p.config.RemotePath,
 		})
 		if err != nil {
@@ -299,7 +312,7 @@ func (p *Provisioner) retryable(f func() error) error {
 		case <-startTimeout:
 			return err
 		default:
-			time.Sleep(2 * time.Second)
+			time.Sleep(retryableSleep)
 		}
 	}
 }
@@ -321,18 +334,15 @@ func (p *Provisioner) createFlattenedEnvVars() (flattened string, err error) {
 		}
 		envVars[keyValue[0]] = keyValue[1]
 	}
-
 	// Create a list of env var keys in sorted order
 	var keys []string
 	for k := range envVars {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
 	// Re-assemble vars using OS specific format pattern and flatten
 	for _, key := range keys {
-		flattened += fmt.Sprintf("powershell -Command \"$env:%s='%s'\"; ", key, envVars[key])
+		flattened += fmt.Sprintf(p.config.EnvVarFormat, key, envVars[key])
 	}
-
 	return
 }
