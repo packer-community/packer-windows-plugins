@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/mitchellh/packer/common"
 	"github.com/mitchellh/packer/packer"
+	"io/ioutil"
 	"log"
 	"os"
 	"sort"
@@ -191,6 +192,24 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	}
 
 	return nil
+}
+
+// This function takes the inline scripts, concatenates them
+// into a temporary file and returns a string containing the location
+// of said file.
+func inlineScripts(p *Provisioner) (string, error) {
+	temp, err := ioutil.TempFile("/tmp", "packer-windows-shell-provisioner")
+	if err != nil {
+		log.Printf("Unable to create temporary file for inline scripts: %s", err)
+		return "", err
+	}
+	for _, command := range p.config.Inline {
+		log.Printf("Found command: %s", command)
+		temp.WriteString(command)
+		temp.WriteString("\n")
+	}
+
+	return temp.Name(), nil
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {

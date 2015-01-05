@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -15,6 +16,28 @@ import (
 func testConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"inline": []interface{}{"foo", "bar"},
+	}
+}
+
+func TestProvisionerPrepare_inlineScripts(t *testing.T) {
+	config := testConfig()
+	p := new(Provisioner)
+	_ = p.Prepare(config)
+	file, err := inlineScripts(p)
+	if err != nil {
+		t.Fatalf("Should not be error: %s", err)
+	}
+	log.Printf("File: %s", file)
+	if strings.Index(file, "/tmp") != 0 {
+		t.Fatalf("Temp file should reside in /tmp. File location: %s", file)
+	}
+
+	// File contents should contain 2 lines concatenated by newlines: foo\nbar
+	readFile, err := ioutil.ReadFile(file)
+	expectedContents := "foo\nbar\n"
+	s := string(readFile[:])
+	if s != expectedContents {
+		t.Fatalf("Expected generated inlineScript to equal '%s', got '%s'", expectedContents, s)
 	}
 }
 
