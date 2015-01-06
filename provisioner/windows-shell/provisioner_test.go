@@ -19,11 +19,11 @@ func testConfig() map[string]interface{} {
 	}
 }
 
-func TestProvisionerPrepare_inlineScripts(t *testing.T) {
+func TestProvisionerPrepare_extractScript(t *testing.T) {
 	config := testConfig()
 	p := new(Provisioner)
 	_ = p.Prepare(config)
-	file, err := inlineScripts(p)
+	file, err := extractScript(p)
 	if err != nil {
 		t.Fatalf("Should not be error: %s", err)
 	}
@@ -253,11 +253,17 @@ func testObjects() (packer.Ui, packer.Communicator) {
 func TestProvisionerProvision_Inline(t *testing.T) {
 	config := testConfig()
 	delete(config, "inline")
+
+	// Defaults provided by Packer
 	config["scripts"] = []string{}
-	config["inline"] = "powershell -command Foo-Command"
+	config["remote_path"] = "c:/Windows/Temp/inlineScript.ps1"
+	config["inline"] = `powershell "& { $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.ps1 }"`
 	ui := testUi()
 
 	p := new(Provisioner)
+	// Defaults provided by Packer
+	p.config.PackerBuildName = "vmware"
+	p.config.PackerBuilderType = "iso"
 	comm := new(packer.MockCommunicator)
 	p.Prepare(config)
 	err := p.Provision(ui, comm)

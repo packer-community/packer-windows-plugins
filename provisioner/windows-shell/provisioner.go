@@ -3,6 +3,7 @@
 package shell
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"github.com/mitchellh/packer/common"
@@ -197,48 +198,41 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 // This function takes the inline scripts, concatenates them
 // into a temporary file and returns a string containing the location
 // of said file.
-func inlineScripts(p *Provisioner) (string, error) {
+func extractScript(p *Provisioner) (string, error) {
 	temp, err := ioutil.TempFile("/tmp", "packer-windows-shell-provisioner")
 	if err != nil {
 		log.Printf("Unable to create temporary file for inline scripts: %s", err)
 		return "", err
 	}
+	writer := bufio.NewWriter(temp)
 	for _, command := range p.config.Inline {
 		log.Printf("Found command: %s", command)
-		temp.WriteString(command)
-		temp.WriteString("\n")
+		if _, err := writer.WriteString(command + "\n"); err != nil {
+			return "", fmt.Errorf("Error preparing shell script: %s", err)
+		}
 	}
+
+	if err := writer.Flush(); err != nil {
+		return "", fmt.Errorf("Error preparing shell script: %s", err)
+	}
+
+	temp.Close()
 
 	return temp.Name(), nil
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	ui.Say(fmt.Sprintf("Provisioning with windows-shell..."))
-
-	// TODO: As per docs (https://www.packer.io/docs/provisioners/shell.html#inline)
-	//       these should be concatenated into a script and executed in the same manner
-	//       as the `scripts` below. Perhaps create a temp file and add to the array below
-	for _, command := range p.config.Inline {
-		log.Printf("Running inline command: %s", command)
-		translatedCommand := command
-		rc := &packer.RemoteCmd{
-			Command: translatedCommand,
-			Stdout:  os.Stdout,
-			Stderr:  os.Stderr,
-		}
-
-		err := comm.Start(rc)
-		if err != nil {
-			log.Printf("Unable to run command: %s", err)
-			return nil
-		}
-
-		rc.Wait()
-		log.Printf("Command completed with exit status %s", rc.ExitStatus)
-	}
-
 	scripts := make([]string, len(p.config.Scripts))
 	copy(scripts, p.config.Scripts)
+
+	if p.config.Inline != nil {
+		temp, err := extractScript(p)
+		if err != nil {
+			ui.Error(fmt.Sprintf("Unable to extract inline scripts into a file: %s", err))
+		}
+		scripts = append(scripts, temp)
+	}
 
 	// Build our variables up by adding in the build name and builder type
 	envVars := make([]string, len(p.config.Vars)+2)
