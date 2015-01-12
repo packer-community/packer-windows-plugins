@@ -357,12 +357,6 @@ func TestProvisionerProvision_ScriptsWithEnvVars(t *testing.T) {
 	}
 }
 
-func TestProvisionerProvision_UISlurp(t *testing.T) {
-	// UI should be called n times
-
-	// UI should receive following messages / output
-}
-
 func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	config := testConfig()
 
