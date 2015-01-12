@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
+const DefaultRemotePath = "c:/Windows/Temp/script.bat"
 
 var retryableSleep = 2 * time.Second
 
@@ -88,11 +88,11 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	errs := common.CheckUnusedConfig(md)
 
 	if p.config.EnvVarFormat == "" {
-		p.config.EnvVarFormat = `$env:%s=\"%s\"; `
+		p.config.EnvVarFormat = `set \"%s=%s\" & `
 	}
 
 	if p.config.ExecuteCommand == "" {
-		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}} }"`
+		p.config.ExecuteCommand = `{{.Vars}}"{{.Path}}"`
 	}
 
 	if p.config.Inline != nil && len(p.config.Inline) == 0 {
@@ -226,6 +226,13 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	scripts := make([]string, len(p.config.Scripts))
 	copy(scripts, p.config.Scripts)
 
+	// Build our variables up by adding in the build name and builder type
+	envVars := make([]string, len(p.config.Vars)+2)
+	envVars[0] = "PACKER_BUILD_NAME=" + p.config.PackerBuildName
+	envVars[1] = "PACKER_BUILDER_TYPE=" + p.config.PackerBuilderType
+
+	copy(envVars, p.config.Vars)
+
 	if p.config.Inline != nil {
 		temp, err := extractScript(p)
 		if err != nil {
@@ -233,12 +240,6 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		}
 		scripts = append(scripts, temp)
 	}
-
-	// Build our variables up by adding in the build name and builder type
-	envVars := make([]string, len(p.config.Vars)+2)
-	envVars[0] = "PACKER_BUILD_NAME=" + p.config.PackerBuildName
-	envVars[1] = "PACKER_BUILDER_TYPE=" + p.config.PackerBuilderType
-	copy(envVars[2:], p.config.Vars)
 
 	for _, path := range scripts {
 		ui.Say(fmt.Sprintf("Provisioning with shell script: %s", path))
