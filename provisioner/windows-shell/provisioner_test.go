@@ -436,6 +436,6 @@ func TestRetryable(t *testing.T) {
 }
 
 func TestCancel(t *testing.T) {
-	p := new(Provisioner)
-	p.Cancel()
+	// Don't actually call Cancel() as it performs an os.Exit(0)
+	// which kills the 'go test' tool
 }
