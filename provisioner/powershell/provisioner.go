@@ -199,7 +199,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 // into a temporary file and returns a string containing the location
 // of said file.
 func extractScript(p *Provisioner) (string, error) {
-	temp, err := ioutil.TempFile("/tmp", "packer-windows-shell-provisioner")
+	temp, err := ioutil.TempFile("/tmp", "packer-powershell-provisioner")
 	if err != nil {
 		log.Printf("Unable to create temporary file for inline scripts: %s", err)
 		return "", err
@@ -222,7 +222,7 @@ func extractScript(p *Provisioner) (string, error) {
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
-	ui.Say(fmt.Sprintf("Provisioning with windows-shell..."))
+	ui.Say(fmt.Sprintf("Provisioning with Powershell..."))
 
 	scripts := make([]string, len(p.config.Scripts))
 	copy(scripts, p.config.Scripts)
