@@ -88,7 +88,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	errs := common.CheckUnusedConfig(md)
 
 	if p.config.EnvVarFormat == "" {
-		p.config.EnvVarFormat = `set \"%s=%s\" & `
+		p.config.EnvVarFormat = `set "%s=%s" && `
 	}
 
 	if p.config.ExecuteCommand == "" {

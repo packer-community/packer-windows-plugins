@@ -270,7 +270,7 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand := `set \"PACKER_BUILDER_TYPE=iso\" & set \"PACKER_BUILD_NAME=vmware\" & "c:/Windows/Temp/inlineScript.bat"`
+	expectedCommand := `set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && "c:/Windows/Temp/inlineScript.bat"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -289,7 +289,7 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand = `set \"BAR=BAZ\" & set \"FOO=BAR\" & set \"PACKER_BUILDER_TYPE=iso\" & set \"PACKER_BUILD_NAME=vmware\" & "c:/Windows/Temp/inlineScript.bat"`
+	expectedCommand = `set "BAR=BAZ" && set "FOO=BAR" && set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && "c:/Windows/Temp/inlineScript.bat"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -316,7 +316,7 @@ func TestProvisionerProvision_Scripts(t *testing.T) {
 	}
 
 	//powershell -Command "$env:PACKER_BUILDER_TYPE=''"; powershell -Command "$env:PACKER_BUILD_NAME='foobuild'";  powershell -Command c:/Windows/Temp/script.ps1
-	expectedCommand := `set \"PACKER_BUILDER_TYPE=footype\" & set \"PACKER_BUILD_NAME=foobuild\" & "c:/Windows/Temp/script.bat"`
+	expectedCommand := `set "PACKER_BUILDER_TYPE=footype" && set "PACKER_BUILD_NAME=foobuild" && "c:/Windows/Temp/script.bat"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -349,7 +349,7 @@ func TestProvisionerProvision_ScriptsWithEnvVars(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand := `set \"BAR=BAZ\" & set \"FOO=BAR\" & set \"PACKER_BUILDER_TYPE=footype\" & set \"PACKER_BUILD_NAME=foobuild\" & "c:/Windows/Temp/script.bat"`
+	expectedCommand := `set "BAR=BAZ" && set "FOO=BAR" && set "PACKER_BUILDER_TYPE=footype" && set "PACKER_BUILD_NAME=foobuild" && "c:/Windows/Temp/script.bat"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -375,7 +375,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	expectedEnvVars := `set \"PACKER_BUILDER_TYPE=iso\" & set \"PACKER_BUILD_NAME=vmware\" & `
+	expectedEnvVars := `set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && `
 	if flattenedEnvVars != expectedEnvVars {
 		t.Fatalf("expected flattened env vars to be: %s, got: %s", expectedEnvVars, flattenedEnvVars)
 	}
@@ -387,7 +387,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	expectedEnvVars = `set \"FOO=bar\" & set \"PACKER_BUILDER_TYPE=iso\" & set \"PACKER_BUILD_NAME=vmware\" & `
+	expectedEnvVars = `set "FOO=bar" && set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && `
 	if flattenedEnvVars != expectedEnvVars {
 		t.Fatalf("expected flattened env vars to be: %s, got: %s", expectedEnvVars, flattenedEnvVars)
 	}
@@ -399,7 +399,7 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	expectedEnvVars = `set \"BAZ=qux\" & set \"FOO=bar\" & set \"PACKER_BUILDER_TYPE=iso\" & set \"PACKER_BUILD_NAME=vmware\" & `
+	expectedEnvVars = `set "BAZ=qux" && set "FOO=bar" && set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && `
 	if flattenedEnvVars != expectedEnvVars {
 		t.Fatalf("expected flattened env vars to be: %s, got: %s", expectedEnvVars, flattenedEnvVars)
 	}
