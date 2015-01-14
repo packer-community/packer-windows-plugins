@@ -1,6 +1,6 @@
 // This package implements a provisioner for Packer that executes
 // shell scripts within the remote machine.
-package shell
+package powershell
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const DefaultRemotePath = "c:/Windows/Temp/script.bat"
+const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
 
 var retryableSleep = 2 * time.Second
 
@@ -88,11 +88,11 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	errs := common.CheckUnusedConfig(md)
 
 	if p.config.EnvVarFormat == "" {
-		p.config.EnvVarFormat = `set "%s=%s" && `
+		p.config.EnvVarFormat = `$env:%s=\"%s\"; `
 	}
 
 	if p.config.ExecuteCommand == "" {
-		p.config.ExecuteCommand = `{{.Vars}}"{{.Path}}"`
+		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}} }"`
 	}
 
 	if p.config.Inline != nil && len(p.config.Inline) == 0 {
@@ -195,11 +195,11 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	return nil
 }
 
-// This function takes the inline scripts, concatenates them
+// Takes the inline scripts, concatenates them
 // into a temporary file and returns a string containing the location
 // of said file.
 func extractScript(p *Provisioner) (string, error) {
-	temp, err := ioutil.TempFile("/tmp", "packer-windows-shell-provisioner")
+	temp, err := ioutil.TempFile("/tmp", "packer-powershell-provisioner")
 	if err != nil {
 		log.Printf("Unable to create temporary file for inline scripts: %s", err)
 		return "", err
@@ -222,7 +222,8 @@ func extractScript(p *Provisioner) (string, error) {
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
-	ui.Say(fmt.Sprintf("Provisioning with windows-shell..."))
+	ui.Say(fmt.Sprintf("Provisioning with Powershell..."))
+
 	scripts := make([]string, len(p.config.Scripts))
 	copy(scripts, p.config.Scripts)
 
@@ -230,7 +231,6 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	envVars := make([]string, len(p.config.Vars)+2)
 	envVars[0] = "PACKER_BUILD_NAME=" + p.config.PackerBuildName
 	envVars[1] = "PACKER_BUILDER_TYPE=" + p.config.PackerBuilderType
-
 	copy(envVars, p.config.Vars)
 
 	if p.config.Inline != nil {

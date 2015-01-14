@@ -1,4 +1,4 @@
-package shell
+package powershell
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/mitchellh/packer/packer"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"testing"
@@ -27,7 +26,7 @@ func TestProvisionerPrepare_extractScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Should not be error: %s", err)
 	}
-	log.Printf("File: %s", file)
+	t.Logf("File: %s", file)
 	if strings.Index(file, "/tmp") != 0 {
 		t.Fatalf("Temp file should reside in /tmp. File location: %s", file)
 	}
@@ -62,8 +61,8 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 		t.Errorf("unexpected remote path: %s", p.config.RemotePath)
 	}
 
-	if p.config.ExecuteCommand != "{{.Vars}}\"{{.Path}}\"" {
-		t.Fatalf("Default command should be powershell {{.Vars}}\"{{.Path}}\", but got %s", p.config.ExecuteCommand)
+	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}} }\"" {
+		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}} }\", but got %s", p.config.ExecuteCommand)
 	}
 }
 
@@ -270,7 +269,7 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand := `set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && "c:/Windows/Temp/inlineScript.bat"`
+	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.bat }"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -289,11 +288,48 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand = `set "BAR=BAZ" && set "FOO=BAR" && set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && "c:/Windows/Temp/inlineScript.bat"`
+	expectedCommand = `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.bat }"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
 		t.Fatalf("Expect command to be: %s, got: %s", expectedCommand, comm.StartCmd.Command)
+	}
+}
+func xTestProvisionerProvision_Inline(t *testing.T) {
+	config := testConfig()
+	delete(config, "inline")
+	config["scripts"] = []string{}
+	config["inline"] = "powershell -command Foo-Command"
+	ui := testUi()
+
+	p := new(Provisioner)
+	comm := new(packer.MockCommunicator)
+	p.Prepare(config)
+	err := p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
+
+	// Should run the command without alteration
+	if comm.StartCmd.Command != config["inline"] {
+		t.Fatalf("Expect command not to be: %s", comm.StartCmd.Command)
+	}
+
+	// Env vars - currently should not effect them
+	envVars := make([]string, 2)
+	envVars[0] = "FOO=BAR"
+	envVars[1] = "BAR=BAZ"
+	config["Vars"] = envVars
+
+	p.Prepare(config)
+	err = p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
+
+	// Should run the command without alteration
+	if comm.StartCmd.Command != config["inline"] {
+		t.Fatalf("Expect command not to be: %s", comm.StartCmd.Command)
 	}
 }
 
@@ -316,7 +352,7 @@ func TestProvisionerProvision_Scripts(t *testing.T) {
 	}
 
 	//powershell -Command "$env:PACKER_BUILDER_TYPE=''"; powershell -Command "$env:PACKER_BUILD_NAME='foobuild'";  powershell -Command c:/Windows/Temp/script.ps1
-	expectedCommand := `set "PACKER_BUILDER_TYPE=footype" && set "PACKER_BUILD_NAME=foobuild" && "c:/Windows/Temp/script.bat"`
+	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1 }"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -349,12 +385,18 @@ func TestProvisionerProvision_ScriptsWithEnvVars(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand := `set "BAR=BAZ" && set "FOO=BAR" && set "PACKER_BUILDER_TYPE=footype" && set "PACKER_BUILD_NAME=foobuild" && "c:/Windows/Temp/script.bat"`
+	expectedCommand := `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1 }"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
 		t.Fatalf("Expect command to be %s NOT %s", expectedCommand, comm.StartCmd.Command)
 	}
+}
+
+func TestProvisionerProvision_UISlurp(t *testing.T) {
+	// UI should be called n times
+
+	// UI should receive following messages / output
 }
 
 func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
@@ -375,9 +417,8 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	expectedEnvVars := `set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && `
-	if flattenedEnvVars != expectedEnvVars {
-		t.Fatalf("expected flattened env vars to be: %s, got: %s", expectedEnvVars, flattenedEnvVars)
+	if flattenedEnvVars != "$env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
+		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 
 	// single user env var
@@ -387,9 +428,8 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	expectedEnvVars = `set "FOO=bar" && set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && `
-	if flattenedEnvVars != expectedEnvVars {
-		t.Fatalf("expected flattened env vars to be: %s, got: %s", expectedEnvVars, flattenedEnvVars)
+	if flattenedEnvVars != "$env:FOO=\\\"bar\\\"; $env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
+		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 
 	// multiple user env vars
@@ -399,9 +439,8 @@ func TestProvisioner_createFlattenedEnvVars_windows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error creating flattened env vars: %s", err)
 	}
-	expectedEnvVars = `set "BAZ=qux" && set "FOO=bar" && set "PACKER_BUILDER_TYPE=iso" && set "PACKER_BUILD_NAME=vmware" && `
-	if flattenedEnvVars != expectedEnvVars {
-		t.Fatalf("expected flattened env vars to be: %s, got: %s", expectedEnvVars, flattenedEnvVars)
+	if flattenedEnvVars != "$env:BAZ=\\\"qux\\\"; $env:FOO=\\\"bar\\\"; $env:PACKER_BUILDER_TYPE=\\\"iso\\\"; $env:PACKER_BUILD_NAME=\\\"vmware\\\"; " {
+		t.Fatalf("unexpected flattened env vars: %s", flattenedEnvVars)
 	}
 }
 
@@ -410,7 +449,7 @@ func TestRetryable(t *testing.T) {
 
 	count := 0
 	retryMe := func() error {
-		log.Printf("RetryMe, attempt number %d", count)
+		t.Logf("RetryMe, attempt number %d", count)
 		if count == 2 {
 			return nil
 		}
