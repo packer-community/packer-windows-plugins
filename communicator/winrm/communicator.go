@@ -134,12 +134,12 @@ func (c *Communicator) Download(string, io.Writer) error {
 func (c *Communicator) newCopyClient() (*winrmcp.Winrmcp, error) {
 	addr := fmt.Sprintf("%s:%d", c.endpoint.Host, c.endpoint.Port)
 	return winrmcp.New(addr, &winrmcp.Config{
-		Timeout: c.timeout,
 		Auth: winrmcp.Auth{
 			User:     c.user,
 			Password: c.password,
 		},
-		MaxCommandsPerShell: 15, // lowest common denominator
+		OperationTimeout:      c.timeout, // should be command timeout
+		MaxOperationsPerShell: 15,        // lowest common denominator
 	})
 }
 
