@@ -51,8 +51,6 @@ func New(endpoint *winrm.Endpoint, user string, password string, timeout time.Du
 		endpoint: endpoint,
 		user:     user,
 		password: password,
-		timeout:  timeout,
-		client:   client,
 	}, nil
 }
 
@@ -101,7 +99,8 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 	log.Printf("starting remote command: %s", cmd.Command)
 
 	// Create a new shell process on the guest
-	err = c.client.RunWithInput(commandText, os.Stdout, os.Stderr, os.Stdin)
+	client := winrm.NewClient(c.endpoint, c.user, c.password)
+	err = client.RunWithInput(commandText, os.Stdout, os.Stderr, os.Stdin)
 	if err != nil {
 		fmt.Println(err)
 		cmd.SetExited(1)
@@ -138,8 +137,7 @@ func (c *Communicator) newCopyClient() (*winrmcp.Winrmcp, error) {
 			User:     c.user,
 			Password: c.password,
 		},
-		OperationTimeout:      c.timeout, // should be command timeout
-		MaxOperationsPerShell: 15,        // lowest common denominator
+		MaxOperationsPerShell: 15, // lowest common denominator
 	})
 }
 
