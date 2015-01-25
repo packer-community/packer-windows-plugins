@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/packer-community/winrmcp/winrmcp"
 	"github.com/masterzen/winrm/winrm"
 	"github.com/mitchellh/packer/packer"
+	"github.com/packer-community/winrmcp/winrmcp"
 )
 
 type Communicator struct {
@@ -111,17 +111,35 @@ func (c *Communicator) runCommand(commandText string, cmd *packer.RemoteCmd) (er
 }
 
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
-	cp := winrmcp.New(c.client)
-	return cp.Write(dst, input)
+	wcp, err := c.newCopyClient()
+	if err != nil {
+		return err
+	}
+	return wcp.Write(dst, input)
 }
 
 func (c *Communicator) UploadDir(dst string, src string, TODO []string) error {
-	cp := winrmcp.New(c.client)
-	return cp.Copy(src, dst)
+	wcp, err := c.newCopyClient()
+	if err != nil {
+		return err
+	}
+	return wcp.Copy(src, dst)
 }
 
 func (c *Communicator) Download(string, io.Writer) error {
 	panic("Download not implemented yet")
+}
+
+func (c *Communicator) newCopyClient() (*winrmcp.Winrmcp, error) {
+	addr := fmt.Sprintf("%s:%d", c.endpoint.Host, c.endpoint.Port)
+	return winrmcp.New(addr, &winrmcp.Config{
+		Timeout: c.timeout,
+		Auth: winrmcp.Auth{
+			User:     c.user,
+			Password: c.password,
+		},
+		MaxCommandsPerShell: 15, // lowest common denominator
+	})
 }
 
 const ElevatedShellTemplate = `
