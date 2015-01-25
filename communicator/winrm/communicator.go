@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dylanmei/iso8601"
 	"github.com/masterzen/winrm/winrm"
 	"github.com/mitchellh/packer/packer"
 	"github.com/packer-community/winrmcp/winrmcp"
@@ -32,7 +33,7 @@ type elevatedShellOptions struct {
 func New(endpoint *winrm.Endpoint, user string, password string, timeout time.Duration) (*Communicator, error) {
 	// Create the WinRM client we use internally
 	params := winrm.DefaultParameters()
-	params.Timeout = ISO8601DurationString(timeout)
+	params.Timeout = iso8601.FormatDuration(timeout)
 	client := winrm.NewClientWithParameters(endpoint, user, password, params)
 
 	// Attempt to connect to the WinRM service
@@ -237,27 +238,3 @@ $exit_code = $registered_task.LastTaskResult
 
 exit $exit_code
 `
-
-func ISO8601DurationString(d time.Duration) string {
-	// We're not supporting negative durations
-	if d.Seconds() <= 0 {
-		return "PT0S"
-	}
-
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) - (hours * 60)
-	seconds := int(d.Seconds()) - (hours*3600 + minutes*60)
-
-	s := "PT"
-	if hours > 0 {
-		s = fmt.Sprintf("%s%dH", s, hours)
-	}
-	if minutes > 0 {
-		s = fmt.Sprintf("%s%dM", s, minutes)
-	}
-	if seconds > 0 {
-		s = fmt.Sprintf("%s%dS", s, seconds)
-	}
-
-	return s
-}
