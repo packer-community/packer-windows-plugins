@@ -18,13 +18,6 @@ type Communicator struct {
 	endpoint *winrm.Endpoint
 	user     string
 	password string
-	timeout  time.Duration
-}
-
-type elevatedShellOptions struct {
-	Command  string
-	User     string
-	Password string
 }
 
 // Creates a new packer.Communicator implementation over WinRM.
@@ -53,15 +46,7 @@ func New(endpoint *winrm.Endpoint, user string, password string, timeout time.Du
 	}, nil
 }
 
-func (c *Communicator) Start(rc *packer.RemoteCmd) (err error) {
-	return c.runCommand(rc, rc.Command)
-}
-
-func (c *Communicator) StartElevated(cmd *packer.RemoteCmd) (err error) {
-	panic("not implemented")
-}
-
-func (c *Communicator) runCommand(rc *packer.RemoteCmd, command string, arguments ...string) (err error) {
+func (c *Communicator) Start(rc *packer.RemoteCmd) error {
 	log.Printf("starting remote command: %s", rc.Command)
 
 	// Create a new shell process on the guest
@@ -71,22 +56,23 @@ func (c *Communicator) runCommand(rc *packer.RemoteCmd, command string, argument
 		return err
 	}
 
-	cmd, err := shell.Execute(command, arguments...)
+	cmd, err := shell.Execute(rc.Command)
 	if err != nil {
 		return err
 	}
 
-	go func(shell *winrm.Shell, cmd *winrm.Command, rc *packer.RemoteCmd) {
-		defer shell.Close()
-
-		go io.Copy(rc.Stdout, cmd.Stdout)
-		go io.Copy(rc.Stderr, cmd.Stderr)
-
-		cmd.Wait()
-		rc.SetExited(cmd.ExitCode())
-	}(shell, cmd, rc)
-
+	go runCommand(shell, cmd, rc)
 	return nil
+}
+
+func runCommand(shell *winrm.Shell, cmd *winrm.Command, rc *packer.RemoteCmd) {
+	defer shell.Close()
+
+	go io.Copy(rc.Stdout, cmd.Stdout)
+	go io.Copy(rc.Stderr, cmd.Stderr)
+
+	cmd.Wait()
+	rc.SetExited(cmd.ExitCode())
 }
 
 func (c *Communicator) Upload(dst string, input io.Reader, ignored *os.FileInfo) error {
