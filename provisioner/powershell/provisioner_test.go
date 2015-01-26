@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/mitchellh/packer/packer"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mitchellh/packer/packer"
 )
 
 func testConfig() map[string]interface{} {
@@ -59,6 +60,13 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 
 	if p.config.RemotePath != DefaultRemotePath {
 		t.Errorf("unexpected remote path: %s", p.config.RemotePath)
+	}
+
+	if p.config.ElevatedUser != "" {
+		t.Error("expected elevated_user to be empty")
+	}
+	if p.config.ElevatedPassword != "" {
+		t.Error("expected elevated_password to be empty")
 	}
 
 	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}} }\"" {

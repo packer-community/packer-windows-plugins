@@ -102,6 +102,7 @@ func (c *Communicator) newCopyClient() (*winrmcp.Winrmcp, error) {
 			User:     c.user,
 			Password: c.password,
 		},
+		OperationTimeout:      time.Minute * 5,
 		MaxOperationsPerShell: 15, // lowest common denominator
 	})
 }

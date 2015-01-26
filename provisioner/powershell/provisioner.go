@@ -4,16 +4,19 @@ package powershell
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
-	"github.com/mitchellh/packer/common"
-	"github.com/mitchellh/packer/packer"
 	"io/ioutil"
 	"log"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mitchellh/packer/common"
+	"github.com/mitchellh/packer/packer"
+	"github.com/packer/common/uuid"
 )
 
 const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
@@ -58,6 +61,12 @@ type config struct {
 	// This is used in the template generation to format environment variables
 	// inside the `ExecuteCommand` template.
 	EnvVarFormat string
+
+	// Instructs the communicator to run the remote script as a
+	// Windows scheduled task, effectively elevating the remote
+	// user by impersonating a logged-in user
+	ElevatedUser     string `mapstructure:"elevated_user"`
+	ElevatedPassword string `mapstructure:"elevated_password"`
 
 	startRetryTimeout time.Duration
 	tpl               *packer.ConfigTemplate
@@ -257,11 +266,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 			return err
 		}
 
-		// Compile the command
-		command, err := p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
-			Vars: flattendVars,
-			Path: p.config.RemotePath,
-		})
+		command, err := p.createCommandText(flattendVars)
 		if err != nil {
 			return fmt.Errorf("Error processing command: %s", err)
 		}
@@ -359,4 +364,41 @@ func (p *Provisioner) createFlattenedEnvVars() (flattened string, err error) {
 		flattened += fmt.Sprintf(p.config.EnvVarFormat, key, envVars[key])
 	}
 	return
+}
+
+func (p *Provisioner) createCommandText(flattenedEnvVars string) (string, error) {
+	command, err := p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
+		Vars: flattenedEnvVars,
+		Path: p.config.RemotePath,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if p.config.ElevatedUser == "" {
+		return command, nil
+	}
+
+	// doesn't take well to the flattened env vars
+	command = "& " + p.config.RemotePath
+
+	log.Printf("Building elevated command for: %s", command)
+
+	// generate command
+	var buffer bytes.Buffer
+	err = elevatedTemplate.Execute(&buffer, elevatedOptions{
+		User:            p.config.ElevatedUser,
+		Password:        p.config.ElevatedPassword,
+		TaskDescription: "Packer elevated task",
+		TaskName:        fmt.Sprintf("packer-%s", uuid.TimeOrderedUUID()),
+		EncodedCommand:  powershellEncode([]byte(command + "; exit $LASTEXITCODE")),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	//log.Printf("ELEVATED SCRIPT: %s\n\n", string(buffer.Bytes()))
+	return "powershell -EncodedCommand " + powershellEncode(buffer.Bytes()), nil
 }
