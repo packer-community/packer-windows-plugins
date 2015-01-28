@@ -26,7 +26,7 @@ func WinRMAddressFunc(config wincommon.WinRMConfig) func(state multistep.StateBa
 	}
 }
 
-// Creates a generic SSH or WinRM connect step from a VMWare builder config
+// Creates a generic WinRM connect step from a Virtualbox builder config
 func NewConnectStep(winrmConfig wincommon.WinRMConfig) multistep.Step {
 	return &wincommon.StepConnectWinRM{
 		WinRMAddress:     WinRMAddressFunc(winrmConfig),
