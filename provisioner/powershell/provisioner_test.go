@@ -27,8 +27,8 @@ func TestProvisionerPrepare_extractScript(t *testing.T) {
 		t.Fatalf("Should not be error: %s", err)
 	}
 	t.Logf("File: %s", file)
-	if strings.Index(file, "/tmp") != 0 {
-		t.Fatalf("Temp file should reside in /tmp. File location: %s", file)
+	if strings.Index(file, os.TempDir()) != 0 {
+		t.Fatalf("Temp file should reside in %s. File location: %s", os.TempDir(), file)
 	}
 
 	// File contents should contain 2 lines concatenated by newlines: foo\nbar
