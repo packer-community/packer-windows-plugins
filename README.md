@@ -58,7 +58,7 @@ With [Go 1.2+](http://golang.org) installed, follow these steps to use these com
 
 A simple Packer template for Windows, which utilizes the `virtualbox-windows-iso` builder and `winrm` communicator plugins, will look something like
 
-<pre>
+```json
   {
     "builders": [{
       "type": "virtualbox-windows-iso",
@@ -103,7 +103,7 @@ A simple Packer template for Windows, which utilizes the `virtualbox-windows-iso
       "vagrantfile_template": "Vagrantfile.template"
     }]
   }
-</pre>
+```
 
 Check out these projects for more detailed examples of Windows-centric Packer templates:
 - [dylanmei/packer-windows-templates](https://github.com/dylanmei/packer-windows-templates)
