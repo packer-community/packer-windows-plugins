@@ -20,7 +20,7 @@ We have created the following Windows-specific plugins:
 * VirtualBox ISO and OVF (`virtualbox-windows-iso`, `virtualbox-windows-ovf`)
 * VMWare ISO and VMX (`vmware-windows-iso`, `vmware-windows-vmx`)
 * Parallels ISO and PVM (`parallels-windows-iso`, `parallels-windows-pvm`)
-* Amazon AMI and EBS (`amazon-windows-iso`, `amazon-windows-ebs`)
+* Amazon EBS (`amazon-windows-ebs`)
 
 #### Provisioners
 
