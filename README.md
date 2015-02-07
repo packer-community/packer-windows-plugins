@@ -4,29 +4,47 @@ A suite of [Packer](http://www.packer.io/) plugins for provisioning Windows mach
 
 ### Status
 
-This is super experimental. *These are not complete Packer plugins yet*.
+The plugins are currently available for **pre-release** and are now fairly stable.
+
+See the list of [outstanding issues](https://github.com/packer-community/packer-windows-plugins/issues?q=is%3Aopen+is%3Aissue+label%3Abug) for further detail.
 
 [![wercker status](https://app.wercker.com/status/900b58d8e99fca90bcfcd599a5e5219e/m "wercker status")](https://app.wercker.com/project/bykey/900b58d8e99fca90bcfcd599a5e5219e)
 [![Coverage Status](https://coveralls.io/repos/packer-community/packer-windows-plugins/badge.png?branch=HEAD)](https://coveralls.io/r/packer-community/packer-windows-plugins)
-  
+
+### The Plugins
+
+We have created the following Windows-specific plugins:
+
+#### Builders
+
+* VirtualBox ISO and OVF (`virtualbox-windows-iso`, `virtualbox-windows-ovf`)
+* VMWare ISO and VMX (`vmware-windows-iso`, `vmware-windows-vmx`)
+* Parallels ISO and PVM (`parallels-windows-iso`, `parallels-windows-pvm`)
+* Amazon AMI and EBS (`amazon-windows-iso`, `amazon-windows-ebs`)
+
+#### Provisioners
+
+* Powershell (`powershell`)
+* Windows Shell (`windows-shell`)
+
 ### Getting Started
-  
+
 The plugins can be used by downloading pre-built binaries, or by building the project locally and ensuring the binaries are in the correct location.
-  
+
 #### Using pre-built binaries
-  
+
 1. Install packer
 1. Download the latest release for your host environment: [packer-windows-plugins/releases](https://github.com/packer-community/packer-windows-plugins/releases)
 1. Unzip the plugin binaries to [a location where Packer will detect them at run-time](https://packer.io/docs/extend/plugins.html), such as any of the following:
   - The directory where the packer binary is.
-  - `~/.packer.d/plugins` on Unix systems or `%APPDATA%/packer.d` on Windows.
+  - `~/.packer.d/plugins` on Unix systems or `%APPDATA%/packer.d/plugins` on Windows.
   - The current working directory.
 1. Change to a directory where you have packer templates, and run as usual.
-  
+
 #### Using a local build
-  
+
 With [Go 1.2+](http://golang.org) installed, follow these steps to use these community plugins for Windows:
-  
+
 1. Install packer
 1. Clone this repo
 1. Run `make dev`
@@ -35,11 +53,11 @@ With [Go 1.2+](http://golang.org) installed, follow these steps to use these com
   - `~/.packer.d/plugins` on Unix systems or `%APPDATA%/packer.d` on Windows.
   - The current working directory.
 1. Change to a directory where you have packer templates, and run as usual.
-  
+
 #### A simple Packer template
-  
+
 A simple Packer template for Windows, which utilizes the `virtualbox-windows-iso` builder and `winrm` communicator plugins, will look something like
-  
+
 <pre>
   {
     "builders": [{
@@ -63,15 +81,20 @@ A simple Packer template for Windows, which utilizes the `virtualbox-windows-iso
       ]
     }],
     "provisioners": [{
-      "type": "windows-shell",
+      "type": "powershell",
       "scripts": [
         "scripts/chocolatey.ps1"
       ]
-    }, {
-      "type": "windows-shell",
+    },{
+      "type": "powershell",
       "inline": [
         "choco install 7zip",
         "choco install dotnet4.5.2"
+      ]
+    },{
+      "type": "windows-shell",
+      "scripts": [
+        "scripts/netsh.bat"
       ]
     }],
     "post-processors": [{
@@ -81,12 +104,12 @@ A simple Packer template for Windows, which utilizes the `virtualbox-windows-iso
     }]
   }
 </pre>
-    
+
 Check out these projects for more detailed examples of Windows-centric Packer templates:
 - [dylanmei/packer-windows-templates](https://github.com/dylanmei/packer-windows-templates)
 - [joefitzgerald/packer-windows](https://github.com/joefitzgerald/packer-windows)
 - [box-cutter/windows-vm](https://github.com/box-cutter/windows-vm)
-    
+
 ### Community
 - **IRC**: `#packer-tool` / `#packer-windows` on Freenode.
 - **Slack**: packer.slack.com
