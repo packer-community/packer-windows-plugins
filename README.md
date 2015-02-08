@@ -111,5 +111,5 @@ Check out these projects for more detailed examples of Windows-centric Packer te
 - [box-cutter/windows-vm](https://github.com/box-cutter/windows-vm)
 
 ### Community
-- **IRC**: `#packer-tool` / `#packer-windows` on Freenode.
+- **IRC**: `#packer-community` on Freenode.
 - **Slack**: packer.slack.com
