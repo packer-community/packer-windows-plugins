@@ -10,23 +10,24 @@ import (
 )
 
 var DefaultRestartCommand = "shutdown /r /c \"packer restart\" /t 5 && net stop winrm"
-
-var retryableSleep = 2 * time.Second
+var DefaultRestartCheckCommand = winrm.Powershell(`echo "${env:COMPUTERNAME} restarted."`)
+var retryableSleep = 5 * time.Second
 
 type config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
-	// The command used to execute the script. The '{{ .Path }}' variable
-	// should be used to specify where the script goes, {{ .Vars }}
-	// can be used to inject the environment_vars into the environment.
+	// The command used to restart the guest machine
 	RestartCommand string `mapstructure:"restart_command"`
 
-	// The timeout for retrying to start the process. Until this timeout
-	// is reached, if the provisioner can't start a process, it retries.
-	// This can be set high to allow for reboots.
-	RawStartRetryTimeout string `mapstructure:"start_retry_timeout"`
-	startRetryTimeout    time.Duration
-	tpl                  *packer.ConfigTemplate
+	// The command used to check if the guest machine has restarted
+	// The output of this command will be displayed to the user
+	RestartCheckCommand string `mapstructure:"restart_check_command"`
+
+	// The timeout for waiting for the machine to restart
+	RawRestartTimeout string `mapstructure:"restart_timeout"`
+
+	restartTimeout time.Duration
+	tpl            *packer.ConfigTemplate
 }
 
 type Provisioner struct {
@@ -55,12 +56,12 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 		p.config.RestartCommand = DefaultRestartCommand
 	}
 
-	if p.config.RawStartRetryTimeout == "" {
-		p.config.RawStartRetryTimeout = "5m"
+	if p.config.RawRestartTimeout == "" {
+		p.config.RawRestartTimeout = "5m"
 	}
 
-	if p.config.RawStartRetryTimeout != "" {
-		p.config.startRetryTimeout, err = time.ParseDuration(p.config.RawStartRetryTimeout)
+	if p.config.RawRestartTimeout != "" {
+		p.config.restartTimeout, err = time.ParseDuration(p.config.RawRestartTimeout)
 		if err != nil {
 			errs = packer.MultiErrorAppend(
 				errs, fmt.Errorf("Failed parsing start_retry_timeout: %s", err))
@@ -75,7 +76,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
-	ui.Say("Restarting Windows Machine")
+	ui.Say("Restarting Machine")
 	p.comm = comm
 	p.ui = ui
 	p.cancel = make(chan struct{})
@@ -102,7 +103,7 @@ var waitForRestart = func(p *Provisioner) error {
 	ui := p.ui
 	ui.Say("Waiting for machine to restart...")
 	waitDone := make(chan bool, 1)
-	timeout := time.After(p.config.startRetryTimeout)
+	timeout := time.After(p.config.restartTimeout)
 	var err error
 
 	go func() {
@@ -111,7 +112,7 @@ var waitForRestart = func(p *Provisioner) error {
 		waitDone <- true
 	}()
 
-	log.Printf("Waiting for machine to reboot with timeout: %s", p.config.startRetryTimeout)
+	log.Printf("Waiting for machine to reboot with timeout: %s", p.config.restartTimeout)
 
 WaitLoop:
 	for {
@@ -134,7 +135,7 @@ WaitLoop:
 			return err
 		case <-p.cancel:
 			close(waitDone)
-			return fmt.Errorf("Interrupt detected, quitting waiting for Windows to restart")
+			return fmt.Errorf("Interrupt detected, quitting waiting for machine to restart")
 			break WaitLoop
 		}
 	}
@@ -144,7 +145,7 @@ WaitLoop:
 }
 
 var waitForCommunicator = func(p *Provisioner) error {
-	cmd := &packer.RemoteCmd{Command: winrm.Powershell(`echo "${env:COMPUTERNAME} restarted."`)}
+	cmd := &packer.RemoteCmd{Command: p.config.RestartCheckCommand}
 	err := cmd.StartWithUi(p.comm, p.ui)
 	return err
 }
@@ -157,7 +158,7 @@ func (p *Provisioner) Cancel() {
 // retryable will retry the given function over and over until a
 // non-error is returned.
 func (p *Provisioner) retryable(f func() error) error {
-	startTimeout := time.After(p.config.startRetryTimeout)
+	startTimeout := time.After(p.config.restartTimeout)
 	for {
 		var err error
 		if err = f(); err == nil {
