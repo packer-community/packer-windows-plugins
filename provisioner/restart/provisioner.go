@@ -2,11 +2,10 @@ package restart
 
 import (
 	"fmt"
-	//"github.com/masterzen/winrm/winrm"
+	"github.com/masterzen/winrm/winrm"
 	"github.com/mitchellh/packer/common"
 	"github.com/mitchellh/packer/packer"
 	"log"
-	"os"
 	"time"
 )
 
@@ -32,6 +31,9 @@ type config struct {
 
 type Provisioner struct {
 	config config
+	comm   packer.Communicator
+	ui     packer.Ui
+	cancel chan struct{}
 }
 
 func (p *Provisioner) Prepare(raws ...interface{}) error {
@@ -74,6 +76,9 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	ui.Say("Restarting Windows Machine")
+	p.comm = comm
+	p.ui = ui
+	p.cancel = make(chan struct{})
 
 	var cmd *packer.RemoteCmd
 	command := DefaultRestartCommand
@@ -90,11 +95,64 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		return fmt.Errorf("Restart script exited with non-zero exit status: %d", cmd.ExitStatus)
 	}
 
+	return waitForRestart(p)
+}
+
+var waitForRestart = func(p *Provisioner) error {
+	ui := p.ui
+	ui.Say("Waiting for machine to restart...")
+	waitDone := make(chan bool, 1)
+	timeoutDuration := 1 * time.Minute
+	timeout := time.After(timeoutDuration)
+	var err error
+
+	go func() {
+		log.Printf("Waiting for machine to become available...")
+		err = waitForCommunicator(p)
+		waitDone <- true
+	}()
+
+	log.Printf("Waiting for machine to reboot with timeout: %s", timeoutDuration)
+
+WaitLoop:
+	for {
+		// Wait for either WinRM to become available, a timeout to occur,
+		// or an interrupt to come through.
+		select {
+		case <-waitDone:
+			if err != nil {
+				ui.Error(fmt.Sprintf("Error waiting for WinRM: %s", err))
+				return err
+			}
+
+			ui.Say("Machine successfully restarted, moving on")
+			close(p.cancel)
+			break WaitLoop
+		case <-timeout:
+			err := fmt.Errorf("Timeout waiting for WinRM.")
+			ui.Error(err.Error())
+			close(p.cancel)
+			return err
+		case <-p.cancel:
+			close(waitDone)
+			return fmt.Errorf("Interrupt detected, quitting waiting for Windows to restart")
+			break WaitLoop
+		}
+	}
+
 	return nil
+
+}
+
+var waitForCommunicator = func(p *Provisioner) error {
+	cmd := &packer.RemoteCmd{Command: winrm.Powershell(`echo "${env:COMPUTERNAME} restarted."`)}
+	err := cmd.StartWithUi(p.comm, p.ui)
+	return err
 }
 
 func (p *Provisioner) Cancel() {
-	os.Exit(0)
+	log.Printf("Received interrupt Cancel()")
+	close(p.cancel)
 }
 
 // retryable will retry the given function over and over until a

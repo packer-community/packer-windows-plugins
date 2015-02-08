@@ -103,6 +103,12 @@ func TestProvisionerProvision_Success(t *testing.T) {
 	// Defaults provided by Packer
 	comm := new(packer.MockCommunicator)
 	p.Prepare(config)
+	//	waitForRestart = func(p *Provisioner) error {
+	//		return nil
+	//	}
+	waitForCommunicator = func(p *Provisioner) error {
+		return nil
+	}
 	err := p.Provision(ui, comm)
 	if err != nil {
 		t.Fatal("should not have error")
@@ -164,6 +170,41 @@ func TestRetryable(t *testing.T) {
 }
 
 func TestCancel(t *testing.T) {
-	// Don't actually call Cancel() as it performs an os.Exit(0)
-	// which kills the 'go test' tool
+	config := testConfig()
+
+	// Defaults provided by Packer
+	ui := testUi()
+	p := new(Provisioner)
+
+	var err error
+
+	comm := new(packer.MockCommunicator)
+	p.Prepare(config)
+	waitDone := make(chan bool)
+
+	// Block until cancel comes through
+	waitForCommunicator = func(p *Provisioner) error {
+		for {
+			select {
+			case <-waitDone:
+			}
+		}
+	}
+
+	// Create two go routines to provision and cancel in parallel
+	// Provision will block until cancel happens
+	go func() {
+		err = p.Provision(ui, comm)
+		waitDone <- true
+	}()
+
+	go func() {
+		p.Cancel()
+	}()
+	<-waitDone
+
+	// Expect interupt error
+	if err == nil {
+		t.Fatal("should have error")
+	}
 }
