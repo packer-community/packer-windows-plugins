@@ -106,6 +106,7 @@ func TestProvisionerProvision_Success(t *testing.T) {
 	//	waitForRestart = func(p *Provisioner) error {
 	//		return nil
 	//	}
+	waitForCommunicatorOld := waitForCommunicator
 	waitForCommunicator = func(p *Provisioner) error {
 		return nil
 	}
@@ -120,8 +121,25 @@ func TestProvisionerProvision_Success(t *testing.T) {
 	if comm.StartCmd.Command != expectedCommand {
 		t.Fatalf("Expect command to be: %s, got %s", expectedCommand, comm.StartCmd.Command)
 	}
+	// Set this back!
+	waitForCommunicator = waitForCommunicatorOld
 }
-func TestProvisionerProvision_Fail(t *testing.T) {
+
+func TestProvisionerProvision_RestartCommandFail(t *testing.T) {
+	config := testConfig()
+	ui := testUi()
+	p := new(Provisioner)
+	comm := new(packer.MockCommunicator)
+	comm.StartStderr = "WinRM terminated"
+	comm.StartExitStatus = 1
+
+	p.Prepare(config)
+	err := p.Provision(ui, comm)
+	if err == nil {
+		t.Fatal("should have error")
+	}
+}
+func TestProvisionerProvision_WaitForRestartFail(t *testing.T) {
 	config := testConfig()
 
 	// Defaults provided by Packer
@@ -130,13 +148,76 @@ func TestProvisionerProvision_Fail(t *testing.T) {
 
 	// Defaults provided by Packer
 	comm := new(packer.MockCommunicator)
-	comm.StartStderr = "WinRM terminated"
-	comm.StartExitStatus = 1
 	p.Prepare(config)
+	waitForCommunicatorOld := waitForCommunicator
+	waitForCommunicator = func(p *Provisioner) error {
+		return fmt.Errorf("Machine did not restart properly")
+	}
 	err := p.Provision(ui, comm)
 	if err == nil {
 		t.Fatal("should have error")
 	}
+
+	// Set this back!
+	waitForCommunicator = waitForCommunicatorOld
+}
+
+func TestProvision_waitForRestartTimeout(t *testing.T) {
+	config := testConfig()
+	config["start_retry_timeout"] = "1ms"
+	ui := testUi()
+	p := new(Provisioner)
+	comm := new(packer.MockCommunicator)
+	var err error
+
+	p.Prepare(config)
+	waitForCommunicatorOld := waitForCommunicator
+	waitDone := make(chan bool)
+
+	// Block until cancel comes through
+	waitForCommunicator = func(p *Provisioner) error {
+		for {
+			select {
+			case <-waitDone:
+			}
+		}
+	}
+
+	go func() {
+		err = p.Provision(ui, comm)
+		waitDone <- true
+	}()
+	<-waitDone
+
+	if err == nil {
+		t.Fatal("should not have error")
+	}
+
+	// Set this back!
+	waitForCommunicator = waitForCommunicatorOld
+
+}
+
+func TestProvision_waitForCommunitactor(t *testing.T) {
+	config := testConfig()
+
+	// Defaults provided by Packer
+	ui := testUi()
+	p := new(Provisioner)
+
+	// Defaults provided by Packer
+	comm := new(packer.MockCommunicator)
+	p.comm = comm
+	p.ui = ui
+	comm.StartStderr = "WinRM terminated"
+	comm.StartExitStatus = 1
+	p.Prepare(config)
+	err := waitForCommunicator(p)
+
+	if err != nil {
+		t.Fatal("should not have error, got: %s", err.Error())
+	}
+
 }
 
 func TestRetryable(t *testing.T) {

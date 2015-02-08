@@ -102,8 +102,7 @@ var waitForRestart = func(p *Provisioner) error {
 	ui := p.ui
 	ui.Say("Waiting for machine to restart...")
 	waitDone := make(chan bool, 1)
-	timeoutDuration := 1 * time.Minute
-	timeout := time.After(timeoutDuration)
+	timeout := time.After(p.config.startRetryTimeout)
 	var err error
 
 	go func() {
@@ -112,7 +111,7 @@ var waitForRestart = func(p *Provisioner) error {
 		waitDone <- true
 	}()
 
-	log.Printf("Waiting for machine to reboot with timeout: %s", timeoutDuration)
+	log.Printf("Waiting for machine to reboot with timeout: %s", p.config.startRetryTimeout)
 
 WaitLoop:
 	for {
