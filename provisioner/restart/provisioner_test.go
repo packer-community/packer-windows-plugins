@@ -199,7 +199,7 @@ func TestProvision_waitForRestartTimeout(t *testing.T) {
 
 }
 
-func TestProvision_waitForCommunitactor(t *testing.T) {
+func TestProvision_waitForCommunicator(t *testing.T) {
 	config := testConfig()
 
 	// Defaults provided by Packer
@@ -224,6 +224,45 @@ func TestProvision_waitForCommunitactor(t *testing.T) {
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
 		t.Fatalf("Expect command to be: %s, got %s", expectedCommand, comm.StartCmd.Command)
+	}
+}
+
+func TestProvision_waitForCommunicatorWithCancel(t *testing.T) {
+	config := testConfig()
+
+	// Defaults provided by Packer
+	ui := testUi()
+	p := new(Provisioner)
+
+	// Defaults provided by Packer
+	comm := new(packer.MockCommunicator)
+	p.comm = comm
+	p.ui = ui
+	retryableSleep = 10 * time.Millisecond
+	p.cancel = make(chan struct{})
+	var err error
+
+	comm.StartStderr = "WinRM terminated"
+	comm.StartExitStatus = 1 // Always fail
+	p.Prepare(config)
+
+	// Run 2 goroutines;
+	//  1st to call waitForCommunicator (that will always fail)
+	//  2nd to cancel the operation
+	waitDone := make(chan bool)
+	go func() {
+		err = waitForCommunicator(p)
+	}()
+
+	go func() {
+		p.Cancel()
+		waitDone <- true
+	}()
+	<-waitDone
+
+	// Expect a Cancel error
+	if err == nil {
+		t.Fatalf("Should have err")
 	}
 }
 
@@ -257,7 +296,7 @@ func TestRetryable(t *testing.T) {
 	}
 }
 
-func TestCancel(t *testing.T) {
+func TestProvision_Cancel(t *testing.T) {
 	config := testConfig()
 
 	// Defaults provided by Packer
