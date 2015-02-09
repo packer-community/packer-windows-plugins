@@ -150,8 +150,28 @@ WaitLoop:
 
 var waitForCommunicator = func(p *Provisioner) error {
 	cmd := &packer.RemoteCmd{Command: p.config.RestartCheckCommand}
-	err := cmd.StartWithUi(p.comm, p.ui)
-	return err
+
+	for {
+		select {
+		case <-p.cancel:
+			log.Println("Communicator wait cancelled, exiting loop")
+			return fmt.Errorf("Communicator wait cancelled")
+		case <-time.After(retryableSleep):
+		}
+
+		log.Printf("Attempting to communicator to machine with: '%s'", cmd.Command)
+
+		err := cmd.StartWithUi(p.comm, p.ui)
+		if err != nil {
+			log.Printf("Communication connection err: %s", err)
+			continue
+		}
+
+		log.Printf("Connected to machine")
+		break
+	}
+
+	return nil
 }
 
 func (p *Provisioner) Cancel() {

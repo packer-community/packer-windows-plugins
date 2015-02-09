@@ -163,6 +163,7 @@ func TestProvisionerProvision_WaitForRestartFail(t *testing.T) {
 }
 
 func TestProvision_waitForRestartTimeout(t *testing.T) {
+	retryableSleep = 10 * time.Millisecond
 	config := testConfig()
 	config["restart_timeout"] = "1ms"
 	ui := testUi()
