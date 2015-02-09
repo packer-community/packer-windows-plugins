@@ -218,6 +218,12 @@ func TestProvision_waitForCommunitactor(t *testing.T) {
 		t.Fatal("should not have error, got: %s", err.Error())
 	}
 
+	expectedCommand := DefaultRestartCheckCommand
+
+	// Should run the command without alteration
+	if comm.StartCmd.Command != expectedCommand {
+		t.Fatalf("Expect command to be: %s, got %s", expectedCommand, comm.StartCmd.Command)
+	}
 }
 
 func TestRetryable(t *testing.T) {

@@ -56,6 +56,10 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 		p.config.RestartCommand = DefaultRestartCommand
 	}
 
+	if p.config.RestartCheckCommand == "" {
+		p.config.RestartCheckCommand = DefaultRestartCheckCommand
+	}
+
 	if p.config.RawRestartTimeout == "" {
 		p.config.RawRestartTimeout = "5m"
 	}
