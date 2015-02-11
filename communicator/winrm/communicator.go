@@ -50,6 +50,7 @@ func New(endpoint *winrm.Endpoint, user string, password string, timeout time.Du
 		endpoint: endpoint,
 		user:     user,
 		password: password,
+		timeout:  timeout,
 	}, nil
 }
 
