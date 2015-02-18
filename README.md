@@ -26,6 +26,7 @@ We have created the following Windows-specific plugins:
 
 * Powershell (`powershell`)
 * Windows Shell (`windows-shell`)
+* Restart Windows (`restart-windows`)
 
 ### Getting Started
 
