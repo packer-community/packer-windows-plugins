@@ -141,5 +141,5 @@ func newEndpoint(address string) (*winrm.Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &winrm.Endpoint{host, iport}, nil
+	return &winrm.Endpoint{Host: host, Port: iport}, nil
 }
