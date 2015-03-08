@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/mitchellh/packer/common"
+	"github.com/mitchellh/packer/common/uuid"
 	"github.com/mitchellh/packer/packer"
-	"github.com/packer/common/uuid"
 )
 
 const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
