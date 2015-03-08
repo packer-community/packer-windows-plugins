@@ -49,7 +49,8 @@ func (r *RunCommand) Flags(fs *flag.FlagSet) *flag.FlagSet {
 func (r *RunCommand) Run(args []string) {
 	command := args[0]
 
-	communicator, err := plugin.New(&winrm.Endpoint{*host, *port}, *user, *pass, *timeout)
+	endpoint := &winrm.Endpoint{Host: *host, Port: *port}
+	communicator, err := plugin.New(endpoint, *user, *pass, *timeout)
 	rc := &packer.RemoteCmd{
 		Command: command,
 		Stdout:  os.Stdout,
@@ -81,7 +82,8 @@ func (f *FileCommand) Flags(fs *flag.FlagSet) *flag.FlagSet {
 }
 
 func (f *FileCommand) Run(args []string) {
-	communicator, err := plugin.New(&winrm.Endpoint{*host, *port}, *user, *pass, *timeout)
+	endpoint := &winrm.Endpoint{Host: *host, Port: *port}
+	communicator, err := plugin.New(endpoint, *user, *pass, *timeout)
 
 	info, err := os.Stat(*f.from)
 	if err != nil {
@@ -111,7 +113,8 @@ func (f *DirCommand) Flags(fs *flag.FlagSet) *flag.FlagSet {
 }
 
 func (f *DirCommand) Run(args []string) {
-	communicator, _ := plugin.New(&winrm.Endpoint{*host, *port}, *user, *pass, *timeout)
+	endpoint := &winrm.Endpoint{Host: *host, Port: *port}
+	communicator, _ := plugin.New(endpoint, *user, *pass, *timeout)
 
 	_, err := os.Stat(*f.from)
 	if err != nil {

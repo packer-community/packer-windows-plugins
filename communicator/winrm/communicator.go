@@ -26,7 +26,10 @@ func New(endpoint *winrm.Endpoint, user string, password string, timeout time.Du
 	// Create the WinRM client we use internally
 	params := winrm.DefaultParameters()
 	params.Timeout = iso8601.FormatDuration(timeout)
-	client := winrm.NewClientWithParameters(endpoint, user, password, params)
+	client, err := winrm.NewClientWithParameters(endpoint, user, password, params)
+	if err != nil {
+		return nil, err
+	}
 
 	// Attempt to connect to the WinRM service
 	shell, err := client.CreateShell()
@@ -52,7 +55,11 @@ func (c *Communicator) Start(rc *packer.RemoteCmd) error {
 	// Create a new shell process on the guest
 	params := winrm.DefaultParameters()
 	params.Timeout = iso8601.FormatDuration(time.Minute * 120)
-	client := winrm.NewClientWithParameters(c.endpoint, c.user, c.password, params)
+	client, err := winrm.NewClientWithParameters(c.endpoint, c.user, c.password, params)
+	if err != nil {
+		return err
+	}
+
 	shell, err := client.CreateShell()
 	if err != nil {
 		return err
