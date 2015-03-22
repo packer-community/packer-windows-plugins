@@ -111,6 +111,22 @@ Check out these projects for more detailed examples of Windows-centric Packer te
 - [joefitzgerald/packer-windows](https://github.com/joefitzgerald/packer-windows)
 - [box-cutter/windows-vm](https://github.com/box-cutter/windows-vm)
 
+### Running commands with Elevated privileges
+
+In certain situations, you may need to run commands with elevated privileges even if your `winrm_username` user is an Administrator, for example upgrading system packages like the .NET Framework.
+In these cases there are 2 additional keys provided on the `powershell` provisioner that you can supply that will enable this mode: `elevated_user` and `elevated_password`:
+
+```
+{
+  "type": "powershell",
+  "elevated_user":"vagrant",
+  "elevated_password":"vagrant",
+  "inline": [
+    "choco install netfx-4.5.2-devpack"
+  ]
+}
+```
+
 ### Community
 - **IRC**: `#packer-community` on Freenode.
 - **Slack**: packer.slack.com
