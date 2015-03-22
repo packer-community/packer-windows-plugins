@@ -54,41 +54,6 @@ func TestStart(t *testing.T) {
 	}
 }
 
-func TestStartElevated(t *testing.T) {
-	// This test hits an already running Windows VM
-	// You can comment this line out temporarily during development
-	t.Skip()
-
-	comm, err := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
-	if err != nil {
-		t.Fatalf("error connecting to WinRM: %s", err)
-	}
-
-	var cmd packer.RemoteCmd
-	var outWriter, errWriter bytes.Buffer
-
-	cmd.Command = "dir"
-	cmd.Stdout = &outWriter
-	cmd.Stderr = &errWriter
-
-	err = comm.StartElevated(&cmd)
-	if err != nil {
-		t.Fatalf("error starting cmd: %s", err)
-	}
-	cmd.Wait()
-
-	fmt.Println(outWriter.String())
-	fmt.Println(errWriter.String())
-
-	if err != nil {
-		t.Fatalf("error running cmd: %s", err)
-	}
-
-	if cmd.ExitStatus != 0 {
-		t.Fatalf("exit status was non-zero: %d", cmd.ExitStatus)
-	}
-}
-
 func TestUpload(t *testing.T) {
 	// This test hits an already running Windows VM
 	// You can comment this line out temporarily during development

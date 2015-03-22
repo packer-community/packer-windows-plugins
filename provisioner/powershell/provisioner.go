@@ -4,16 +4,19 @@ package powershell
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
-	"github.com/mitchellh/packer/common"
-	"github.com/mitchellh/packer/packer"
 	"io/ioutil"
 	"log"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mitchellh/packer/common"
+	"github.com/mitchellh/packer/common/uuid"
+	"github.com/mitchellh/packer/packer"
 )
 
 const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
@@ -50,6 +53,11 @@ type config struct {
 	// can be used to inject the environment_vars into the environment.
 	ExecuteCommand string `mapstructure:"execute_command"`
 
+	// The command used to execute the elevated script. The '{{ .Path }}' variable
+	// should be used to specify where the script goes, {{ .Vars }}
+	// can be used to inject the environment_vars into the environment.
+	ElevatedExecuteCommand string `mapstructure:"elevated_execute_command"`
+
 	// The timeout for retrying to start the process. Until this timeout
 	// is reached, if the provisioner can't start a process, it retries.
 	// This can be set high to allow for reboots.
@@ -59,12 +67,23 @@ type config struct {
 	// inside the `ExecuteCommand` template.
 	EnvVarFormat string
 
+	// This is used in the template generation to format environment variables
+	// inside the `ElevatedExecuteCommand` template.
+	ElevatedEnvVarFormat string `mapstructure:"elevated_env_var_format"`
+
+	// Instructs the communicator to run the remote script as a
+	// Windows scheduled task, effectively elevating the remote
+	// user by impersonating a logged-in user
+	ElevatedUser     string `mapstructure:"elevated_user"`
+	ElevatedPassword string `mapstructure:"elevated_password"`
+
 	startRetryTimeout time.Duration
 	tpl               *packer.ConfigTemplate
 }
 
 type Provisioner struct {
-	config config
+	config       config
+	communicator packer.Communicator
 }
 
 type ExecuteCommandTemplate struct {
@@ -91,8 +110,16 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 		p.config.EnvVarFormat = `$env:%s=\"%s\"; `
 	}
 
+	if p.config.ElevatedEnvVarFormat == "" {
+		p.config.ElevatedEnvVarFormat = `$env:%s="%s"; `
+	}
+
 	if p.config.ExecuteCommand == "" {
 		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}} }"`
+	}
+
+	if p.config.ElevatedExecuteCommand == "" {
+		p.config.ElevatedExecuteCommand = `{{.Vars}}{{.Path}}`
 	}
 
 	if p.config.Inline != nil && len(p.config.Inline) == 0 {
@@ -118,6 +145,16 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	if p.config.Script != "" && len(p.config.Scripts) > 0 {
 		errs = packer.MultiErrorAppend(errs,
 			errors.New("Only one of script or scripts can be specified."))
+	}
+
+	if p.config.ElevatedUser != "" && p.config.ElevatedPassword == "" {
+		errs = packer.MultiErrorAppend(errs,
+			errors.New("Must supply an 'elevated_password' if 'elevated_user' provided"))
+	}
+
+	if p.config.ElevatedUser == "" && p.config.ElevatedPassword != "" {
+		errs = packer.MultiErrorAppend(errs,
+			errors.New("Must supply an 'elevated_user' if 'elevated_password' provided"))
 	}
 
 	if p.config.Script != "" {
@@ -201,9 +238,9 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 func extractScript(p *Provisioner) (string, error) {
 	temp, err := ioutil.TempFile(os.TempDir(), "packer-powershell-provisioner")
 	if err != nil {
-		log.Printf("Unable to create temporary file for inline scripts: %s", err)
 		return "", err
 	}
+	defer temp.Close()
 	writer := bufio.NewWriter(temp)
 	for _, command := range p.config.Inline {
 		log.Printf("Found command: %s", command)
@@ -216,13 +253,12 @@ func extractScript(p *Provisioner) (string, error) {
 		return "", fmt.Errorf("Error preparing shell script: %s", err)
 	}
 
-	temp.Close()
-
 	return temp.Name(), nil
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	ui.Say(fmt.Sprintf("Provisioning with Powershell..."))
+	p.communicator = comm
 
 	scripts := make([]string, len(p.config.Scripts))
 	copy(scripts, p.config.Scripts)
@@ -251,17 +287,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		}
 		defer f.Close()
 
-		// Create environment variables to set before executing the command
-		flattendVars, err := p.createFlattenedEnvVars()
-		if err != nil {
-			return err
-		}
-
-		// Compile the command
-		command, err := p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
-			Vars: flattendVars,
-			Path: p.config.RemotePath,
-		})
+		command, err := p.createCommandText()
 		if err != nil {
 			return fmt.Errorf("Error processing command: %s", err)
 		}
@@ -331,7 +357,7 @@ func (p *Provisioner) retryable(f func() error) error {
 	}
 }
 
-func (p *Provisioner) createFlattenedEnvVars() (flattened string, err error) {
+func (p *Provisioner) createFlattenedEnvVars(elevated bool) (flattened string, err error) {
 	flattened = ""
 	envVars := make(map[string]string)
 
@@ -348,15 +374,105 @@ func (p *Provisioner) createFlattenedEnvVars() (flattened string, err error) {
 		}
 		envVars[keyValue[0]] = keyValue[1]
 	}
+
 	// Create a list of env var keys in sorted order
 	var keys []string
 	for k := range envVars {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+	format := p.config.EnvVarFormat
+	if elevated {
+		format = p.config.ElevatedEnvVarFormat
+	}
+
 	// Re-assemble vars using OS specific format pattern and flatten
 	for _, key := range keys {
-		flattened += fmt.Sprintf(p.config.EnvVarFormat, key, envVars[key])
+		flattened += fmt.Sprintf(format, key, envVars[key])
 	}
 	return
+}
+
+func (p *Provisioner) createCommandText() (command string, err error) {
+	// Create environment variables to set before executing the command
+	flattenedEnvVars, err := p.createFlattenedEnvVars(false)
+	if err != nil {
+		return "", err
+	}
+	command, err = p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
+		Vars: flattenedEnvVars,
+		Path: p.config.RemotePath,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	// Return the interpolated command
+	if p.config.ElevatedUser == "" {
+		return command, nil
+	}
+
+	// Can't double escape the env vars, lets create shiny new ones
+	flattenedEnvVars, err = p.createFlattenedEnvVars(true)
+	command, err = p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
+		Vars: flattenedEnvVars,
+		Path: p.config.RemotePath,
+	})
+
+	// OK so we need an elevated shell runner to wrap our command, this is going to have its own path
+	// generate the script and update the command runner in the process
+	path, err := p.generateElevatedRunner(command)
+
+	// Return the path to the elevated shell wrapper
+	command = fmt.Sprintf("powershell -executionpolicy bypass -file \"%s\"", path)
+
+	return
+}
+
+func (p *Provisioner) generateElevatedRunner(command string) (uploadedPath string, err error) {
+	log.Printf("Building elevated command wrapper for: %s", command)
+
+	// generate command
+	var buffer bytes.Buffer
+	err = elevatedTemplate.Execute(&buffer, elevatedOptions{
+		User:            p.config.ElevatedUser,
+		Password:        p.config.ElevatedPassword,
+		TaskDescription: "Packer elevated task",
+		TaskName:        fmt.Sprintf("packer-%s", uuid.TimeOrderedUUID()),
+		EncodedCommand:  powershellEncode([]byte(command + "; exit $LASTEXITCODE")),
+	})
+
+	if err != nil {
+		fmt.Printf("Error creating elevated template: %s", err)
+		return "", err
+	}
+
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "packer-elevated-shell.ps1")
+	writer := bufio.NewWriter(tmpFile)
+	if _, err := writer.WriteString(string(buffer.Bytes())); err != nil {
+		return "", fmt.Errorf("Error preparing elevated shell script: %s", err)
+	}
+
+	if err := writer.Flush(); err != nil {
+		return "", fmt.Errorf("Error preparing elevated shell script: %s", err)
+	}
+	tmpFile.Close()
+	f, err := os.Open(tmpFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("Error opening temporary elevated shell script: %s", err)
+	}
+	defer f.Close()
+
+	uuid := uuid.TimeOrderedUUID()
+	path := fmt.Sprintf(`${env:TEMP}\packer-elevated-shell-%s.ps1`, uuid)
+	log.Printf("Uploading elevated shell wrapper for command [%s] to [%s] from [%s]", command, path, tmpFile.Name())
+	err = p.communicator.Upload(path, f, nil)
+	if err != nil {
+		return "", fmt.Errorf("Error preparing elevated shell script: %s", err)
+	}
+
+	// CMD formatted Path required for this op
+	path = fmt.Sprintf("%s-%s.ps1", "%TEMP%\\packer-elevated-shell", uuid)
+	return path, err
 }
