@@ -4,7 +4,7 @@ A suite of [Packer](http://www.packer.io/) plugins for provisioning Windows mach
 
 ### Status
 
-The plugins are currently available for **pre-release** and are now fairly stable.
+The plugins are currently available as a **Release Candidate** and are quite stable.
 
 See the list of [outstanding issues](https://github.com/packer-community/packer-windows-plugins/issues?q=is%3Aopen+is%3Aissue+label%3Abug) for further detail.
 
