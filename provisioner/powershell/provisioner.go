@@ -417,7 +417,7 @@ func (p *Provisioner) createCommandText() (command string, err error) {
 
 	// Can't double escape the env vars, lets create shiny new ones
 	flattenedEnvVars, err = p.createFlattenedEnvVars(true)
-	command, err = p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
+	command, err = p.config.tpl.Process(p.config.ElevatedExecuteCommand, &ExecuteCommandTemplate{
 		Vars: flattenedEnvVars,
 		Path: p.config.RemotePath,
 	})
