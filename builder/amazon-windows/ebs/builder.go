@@ -114,7 +114,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			BlockDevices:             b.config.BlockDevices,
 			Tags:                     b.config.RunTags,
 		},
-		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, b.config.WinRMConfig),
+		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, &b.config.WinRMConfig),
 		&common.StepProvision{},
 		&stepStopInstance{SpotPrice: b.config.SpotPrice},
 		// TODO(mitchellh): verify works with spots

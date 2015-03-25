@@ -101,7 +101,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			VMName:      b.config.VMName,
 			Tpl:         b.config.tpl,
 		},
-		winvboxcommon.NewConnectStep(b.config.WinRMConfig),
+		winvboxcommon.NewConnectStep(&b.config.WinRMConfig),
 		&vboxcommon.StepUploadVersion{
 			Path: b.config.VBoxVersionFile,
 		},

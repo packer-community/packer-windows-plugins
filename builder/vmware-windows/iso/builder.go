@@ -14,6 +14,7 @@ import (
 	"github.com/mitchellh/packer/common"
 	"github.com/mitchellh/packer/packer"
 	vmwcommon "github.com/packer-community/packer-windows-plugins/builder/vmware-windows/common"
+	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
 const BuilderIdESX = "mitchellh.vmware-esx"
@@ -32,7 +33,7 @@ type config struct {
 	vmwcommon.SSHConfig      `mapstructure:",squash"`
 	vmwcommon.ToolsConfig    `mapstructure:",squash"`
 	vmwcommon.VMXConfig      `mapstructure:",squash"`
-	vmwcommon.WinRMConfig    `mapstructure:",squash"`
+	wincommon.WinRMConfig    `mapstructure:",squash"`
 
 	AdditionalDiskSize []uint   `mapstructure:"additionaldisk_size"`
 	DiskName           string   `mapstructure:"vmdk_name"`

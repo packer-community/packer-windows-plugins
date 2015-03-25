@@ -50,11 +50,10 @@ func WinRMAddress(e *ec2.EC2, port uint, private bool) func(multistep.StateBag) 
 }
 
 // Creates a WinRM connect step for an EC2 instance
-func NewConnectStep(ec2 *ec2.EC2, private bool, winrmConfig wincommon.WinRMConfig) multistep.Step {
+func NewConnectStep(ec2 *ec2.EC2, private bool, winrmConfig *wincommon.WinRMConfig) multistep.Step {
 	return &wincommon.StepConnectWinRM{
 		WinRMAddress:     WinRMAddress(ec2, winrmConfig.WinRMPort, private),
-		WinRMUser:        winrmConfig.WinRMUser,
-		WinRMPassword:    winrmConfig.WinRMPassword,
+		WinRMConfig:      winrmConfig,
 		WinRMWaitTimeout: winrmConfig.WinRMWaitTimeout,
 	}
 }

@@ -8,7 +8,7 @@ import (
 	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
-func WinRMAddressFunc(config wincommon.WinRMConfig) func(state multistep.StateBag) (string, error) {
+func WinRMAddressFunc(config *wincommon.WinRMConfig) func(state multistep.StateBag) (string, error) {
 	if config.WinRMHost == "" {
 		log.Printf("No WinRM Host provided, using default host 127.0.0.1")
 		config.WinRMHost = "127.0.0.1"
@@ -27,11 +27,10 @@ func WinRMAddressFunc(config wincommon.WinRMConfig) func(state multistep.StateBa
 }
 
 // Creates a generic WinRM connect step from a Virtualbox builder config
-func NewConnectStep(winrmConfig wincommon.WinRMConfig) multistep.Step {
+func NewConnectStep(winrmConfig *wincommon.WinRMConfig) multistep.Step {
 	return &wincommon.StepConnectWinRM{
 		WinRMAddress:     WinRMAddressFunc(winrmConfig),
-		WinRMUser:        winrmConfig.WinRMUser,
-		WinRMPassword:    winrmConfig.WinRMPassword,
+		WinRMConfig:      winrmConfig,
 		WinRMWaitTimeout: winrmConfig.WinRMWaitTimeout,
 	}
 }

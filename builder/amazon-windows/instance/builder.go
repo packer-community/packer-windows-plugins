@@ -30,7 +30,7 @@ type Config struct {
 	awscommon.AMIConfig    `mapstructure:",squash"`
 	awscommon.BlockDevices `mapstructure:",squash"`
 	winawscommon.RunConfig `mapstructure:",squash"`
-	wincommon.WinRMConfig  `mapstructure:",squash"`
+	*wincommon.WinRMConfig `mapstructure:",squash"`
 
 	AccountId           string `mapstructure:"account_id"`
 	BundleDestination   string `mapstructure:"bundle_destination"`

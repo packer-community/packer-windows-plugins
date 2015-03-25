@@ -29,11 +29,7 @@ type StepConnectWinRM struct {
 	// if necessary for this address.
 	WinRMAddress func(multistep.StateBag) (string, error)
 
-	// The user name to connect to WinRM as
-	WinRMUser string
-
-	// The user password
-	WinRMPassword string
+	WinRMConfig *WinRMConfig
 
 	// WinRMWaitTimeout is the total timeout to wait for WinRM to become available.
 	WinRMWaitTimeout time.Duration
@@ -119,7 +115,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 
 		log.Printf("Attempting WinRM connection (timeout: %s)", s.WinRMWaitTimeout)
 
-		comm, err = plugin.New(endpoint, s.WinRMUser, s.WinRMPassword, s.WinRMWaitTimeout)
+		comm, err = plugin.New(endpoint, s.WinRMConfig.WinRMUser, s.WinRMConfig.WinRMPassword, s.WinRMWaitTimeout)
 		if err != nil {
 			log.Printf("WinRM connection err: %s", err)
 			continue
