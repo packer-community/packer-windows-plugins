@@ -89,6 +89,26 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 }
 
 func TestProvisionerPrepare_Config(t *testing.T) {
+	config := testConfig()
+	config["elevated_user"] = "{{user `user`}}"
+	config["elevated_password"] = "{{user `password`}}"
+	config[packer.UserVariablesConfigKey] = map[string]string{
+		"user":     "myusername",
+		"password": "mypassword",
+	}
+
+	var p Provisioner
+	err := p.Prepare(config)
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if p.config.ElevatedUser != "myusername" {
+		t.Fatalf("Expected 'myusername' for key `elevated_user`: %s", p.config.ElevatedUser)
+	}
+	if p.config.ElevatedPassword != "mypassword" {
+		t.Fatalf("Expected 'mypassword' for key `elevated_password`: %s", p.config.ElevatedPassword)
+	}
 
 }
 

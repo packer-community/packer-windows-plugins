@@ -165,6 +165,8 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 		"script":              &p.config.Script,
 		"start_retry_timeout": &p.config.RawStartRetryTimeout,
 		"remote_path":         &p.config.RemotePath,
+		"elevated_user":       &p.config.ElevatedUser,
+		"elevated_password":   &p.config.ElevatedPassword,
 	}
 
 	for n, ptr := range templates {
