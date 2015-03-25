@@ -6,7 +6,9 @@
 package ebs
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/mitchellh/goamz/ec2"
 	"github.com/mitchellh/multistep"
@@ -83,15 +85,19 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	state.Put("ec2", ec2conn)
 	state.Put("hook", hook)
 	state.Put("ui", ui)
-	// Required by StepRunSourceInstance. Seems a better alternative
-	// to duplicating ~300 lines of code just to remove it as a dependency
-	state.Put("keyPair", "")
+	state.Put("keyPair", b.config.TemporaryKeyPairName)
 
 	// Build the steps
 	steps := []multistep.Step{
 		&awscommon.StepSourceAMIInfo{
 			SourceAmi:          b.config.SourceAmi,
 			EnhancedNetworking: b.config.AMIEnhancedNetworking,
+		},
+		&awscommon.StepKeyPair{
+			Debug:          b.config.PackerDebug,
+			DebugKeyPath:   fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
+			KeyPairName:    b.config.TemporaryKeyPairName,
+			PrivateKeyFile: b.config.KeyPairPrivateKeyFile,
 		},
 		&winawscommon.StepSecurityGroup{
 			SecurityGroupIds: b.config.SecurityGroupIds,
@@ -114,6 +120,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			BlockDevices:             b.config.BlockDevices,
 			Tags:                     b.config.RunTags,
 		},
+		&winawscommon.StepGetPassword{WinRMConfig: &b.config.WinRMConfig, GetPasswordTimeout: 5 * time.Minute},
 		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, &b.config.WinRMConfig),
 		&common.StepProvision{},
 		&stepStopInstance{SpotPrice: b.config.SpotPrice},
