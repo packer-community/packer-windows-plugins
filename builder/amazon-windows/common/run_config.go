@@ -29,6 +29,8 @@ type RunConfig struct {
 	UserDataFile             string            `mapstructure:"user_data_file"`
 	VpcId                    string            `mapstructure:"vpc_id"`
 	WinRMPrivateIp           bool              `mapstructure:"winrm_private_ip"`
+	WinRMCertificateFile     string            `mapstructure:"winrm_certificate_file"`
+	ConfigureSecureWinRM     bool              `mapstructure:"winrm_autoconfigure"`
 }
 
 func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
@@ -87,11 +89,21 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 		}
 	}
 
-	if c.UserData != "" && c.UserDataFile != "" {
-		errs = append(errs, fmt.Errorf("Only one of user_data or user_data_file can be specified."))
-	} else if c.UserDataFile != "" {
-		if _, err := os.Stat(c.UserDataFile); err != nil {
-			errs = append(errs, fmt.Errorf("user_data_file not found: %s", c.UserDataFile))
+	if c.ConfigureSecureWinRM {
+		if c.UserData != "" || c.UserDataFile != "" {
+			errs = append(errs, fmt.Errorf("winrm_autoconfigure cannot be used in conjunction with user_data or user_data_file."))
+		}
+
+		if c.WinRMCertificateFile == "" {
+			errs = append(errs, fmt.Errorf("winrm_certificate_file must be set to the path of a PFX container holding the certificate to be used for WinRM."))
+		}
+	} else {
+		if c.UserData != "" && c.UserDataFile != "" {
+			errs = append(errs, fmt.Errorf("Only one of user_data or user_data_file can be specified."))
+		} else if c.UserDataFile != "" {
+			if _, err := os.Stat(c.UserDataFile); err != nil {
+				errs = append(errs, fmt.Errorf("user_data_file not found: %s", c.UserDataFile))
+			}
 		}
 	}
 

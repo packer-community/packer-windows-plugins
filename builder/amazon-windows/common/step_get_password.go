@@ -34,7 +34,7 @@ func (s *StepGetPassword) Run(state multistep.StateBag) multistep.StepAction {
 	cancel := make(chan struct{})
 	waitDone := make(chan bool, 1)
 	go func() {
-		ui.Say(fmt.Sprintf("Retrieving auto-generated password for instance %s...", instance))
+		ui.Say(fmt.Sprintf("Retrieving auto-generated password for instance %s...", instance.InstanceId))
 
 		password, err = s.waitForPassword(state, cancel)
 		if err != nil {
@@ -44,7 +44,7 @@ func (s *StepGetPassword) Run(state multistep.StateBag) multistep.StepAction {
 		waitDone <- true
 	}()
 
-	log.Printf("Waiting to retrieve instance %s password, up to timeout: %s", instance, s.GetPasswordTimeout)
+	log.Printf("Waiting to retrieve instance %s password, up to timeout: %s", instance.InstanceId, s.GetPasswordTimeout)
 	timeout := time.After(s.GetPasswordTimeout)
 
 WaitLoop:
@@ -60,11 +60,10 @@ WaitLoop:
 			}
 
 			s.WinRMConfig.WinRMPassword = password
-			ui.Say(fmt.Sprintf("Retrieved password for instance %s", instance))
 			break WaitLoop
 
 		case <-timeout:
-			err := fmt.Errorf(fmt.Sprintf("Timeout retrieving password for instance %s", instance))
+			err := fmt.Errorf(fmt.Sprintf("Timeout retrieving password for instance %s", instance.InstanceId))
 			state.Put("error", err)
 			ui.Error(err.Error())
 			close(cancel)

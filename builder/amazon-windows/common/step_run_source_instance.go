@@ -9,25 +9,16 @@ import (
 
 	"github.com/mitchellh/goamz/ec2"
 	"github.com/mitchellh/multistep"
-	awscommon "github.com/mitchellh/packer/builder/amazon/common"
 	"github.com/mitchellh/packer/packer"
+
+	awscommon "github.com/mitchellh/packer/builder/amazon/common"
 )
 
 type StepRunSourceInstance struct {
-	AssociatePublicIpAddress bool
-	AvailabilityZone         string
-	BlockDevices             awscommon.BlockDevices
-	Debug                    bool
-	ExpectedRootDevice       string
-	InstanceType             string
-	IamInstanceProfile       string
-	SourceAMI                string
-	SpotPrice                string
-	SpotPriceProduct         string
-	SubnetId                 string
-	Tags                     map[string]string
-	UserData                 string
-	UserDataFile             string
+	RunConfig          *RunConfig
+	BlockDevices       *awscommon.BlockDevices
+	ExpectedRootDevice string
+	Debug              bool
 
 	instance    *ec2.Instance
 	spotRequest *ec2.SpotRequestResult
@@ -39,9 +30,9 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 	securityGroupIds := state.Get("securityGroupIds").([]string)
 	ui := state.Get("ui").(packer.Ui)
 
-	userData := s.UserData
-	if s.UserDataFile != "" {
-		contents, err := ioutil.ReadFile(s.UserDataFile)
+	userData := s.RunConfig.UserData
+	if s.RunConfig.UserDataFile != "" {
+		contents, err := ioutil.ReadFile(s.RunConfig.UserDataFile)
 		if err != nil {
 			state.Put("error", fmt.Errorf("Problem reading user data file: %s", err))
 			return multistep.ActionHalt
@@ -84,9 +75,9 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 		// Detect the spot price
 		startTime := time.Now().Add(-1 * time.Hour)
 		resp, err := ec2conn.DescribeSpotPriceHistory(&ec2.DescribeSpotPriceHistory{
-			InstanceType:       []string{s.InstanceType},
-			ProductDescription: []string{s.SpotPriceProduct},
-			AvailabilityZone:   s.AvailabilityZone,
+			InstanceType:       []string{s.RunConfig.InstanceType},
+			ProductDescription: []string{s.RunConfig.SpotPriceAutoProduct},
+			AvailabilityZone:   s.RunConfig.AvailabilityZone,
 			StartTime:          startTime,
 		})
 		if err != nil {
@@ -123,17 +114,17 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 	if spotPrice == "" {
 		runOpts := &ec2.RunInstances{
 			KeyName:                  keyName,
-			ImageId:                  s.SourceAMI,
-			InstanceType:             s.InstanceType,
+			ImageId:                  s.RunConfig.SourceAmi,
+			InstanceType:             s.RunConfig.InstanceType,
 			UserData:                 []byte(userData),
 			MinCount:                 0,
 			MaxCount:                 0,
 			SecurityGroups:           securityGroups,
-			IamInstanceProfile:       s.IamInstanceProfile,
-			SubnetId:                 s.SubnetId,
-			AssociatePublicIpAddress: s.AssociatePublicIpAddress,
+			IamInstanceProfile:       s.RunConfig.IamInstanceProfile,
+			SubnetId:                 s.RunConfig.SubnetId,
+			AssociatePublicIpAddress: s.RunConfig.AssociatePublicIpAddress,
 			BlockDevices:             s.BlockDevices.BuildLaunchDevices(),
-			AvailZone:                s.AvailabilityZone,
+			AvailZone:                s.RunConfig.AvailabilityZone,
 		}
 		runResp, err := ec2conn.RunInstances(runOpts)
 		if err != nil {
@@ -146,20 +137,20 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 	} else {
 		ui.Message(fmt.Sprintf(
 			"Requesting spot instance '%s' for: %s",
-			s.InstanceType, spotPrice))
+			s.RunConfig.InstanceType, spotPrice))
 
 		runOpts := &ec2.RequestSpotInstances{
 			SpotPrice:                spotPrice,
 			KeyName:                  keyName,
-			ImageId:                  s.SourceAMI,
-			InstanceType:             s.InstanceType,
+			ImageId:                  s.RunConfig.SourceAmi,
+			InstanceType:             s.RunConfig.InstanceType,
 			UserData:                 []byte(userData),
 			SecurityGroups:           securityGroups,
-			IamInstanceProfile:       s.IamInstanceProfile,
-			SubnetId:                 s.SubnetId,
-			AssociatePublicIpAddress: s.AssociatePublicIpAddress,
+			IamInstanceProfile:       s.RunConfig.IamInstanceProfile,
+			SubnetId:                 s.RunConfig.SubnetId,
+			AssociatePublicIpAddress: s.RunConfig.AssociatePublicIpAddress,
 			BlockDevices:             s.BlockDevices.BuildLaunchDevices(),
-			AvailZone:                s.AvailabilityZone,
+			AvailZone:                s.RunConfig.AvailabilityZone,
 		}
 		runSpotResp, err := ec2conn.RequestSpotInstances(runOpts)
 		if err != nil {
@@ -196,18 +187,26 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 		instanceId = spotResp.SpotRequestResults[0].InstanceId
 	}
 
-	ui.Message(fmt.Sprintf("Instance ID: %s", instanceId))
+	instanceResp, err := ec2conn.Instances([]string{instanceId}, nil)
+	if err != nil {
+		err := fmt.Errorf("Error finding source instance (%s): %s", instanceId, err)
+		state.Put("error", err)
+		ui.Error(err.Error())
+		return multistep.ActionHalt
+	}
+	s.instance = &instanceResp.Reservations[0].Instances[0]
+	ui.Message(fmt.Sprintf("Instance ID: %s", s.instance.InstanceId))
 
-	ui.Say(fmt.Sprintf("Waiting for instance (%v) to become ready...", instanceId))
-	stateChange := StateChangeConf{
+	ui.Say(fmt.Sprintf("Waiting for instance (%s) to become ready...", s.instance.InstanceId))
+	stateChange := awscommon.StateChangeConf{
 		Pending:   []string{"pending"},
 		Target:    "running",
-		Refresh:   InstanceStateRefreshFunc(ec2conn, instanceId),
+		Refresh:   awscommon.InstanceStateRefreshFunc(ec2conn, s.instance),
 		StepState: state,
 	}
-	latestInstance, err := WaitForState(&stateChange)
+	latestInstance, err := awscommon.WaitForState(&stateChange)
 	if err != nil {
-		err := fmt.Errorf("Error waiting for instance (%s) to become ready: %s", instanceId, err)
+		err := fmt.Errorf("Error waiting for instance (%s) to become ready: %s", s.instance.InstanceId, err)
 		state.Put("error", err)
 		ui.Error(err.Error())
 		return multistep.ActionHalt
@@ -215,9 +214,9 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 
 	s.instance = latestInstance.(*ec2.Instance)
 
-	ec2Tags := make([]ec2.Tag, 1, len(s.Tags)+1)
+	ec2Tags := make([]ec2.Tag, 1, len(s.RunConfig.RunTags)+1)
 	ec2Tags[0] = ec2.Tag{"Name", "Packer Builder"}
-	for k, v := range s.Tags {
+	for k, v := range s.RunConfig.RunTags {
 		ec2Tags = append(ec2Tags, ec2.Tag{k, v})
 	}
 
