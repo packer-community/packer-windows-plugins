@@ -36,15 +36,28 @@ func (s *StepGenerateSecureWinRMUserData) Run(state multistep.StateBag) multiste
 
 	encodedCert := base64.StdEncoding.EncodeToString(certBytes)
 
+	var adminPasswordBuffer bytes.Buffer
+	if s.RunConfig.NewAdministratorPassword != "" {
+		ui.Say("Configuring user data to change Administrator password...")
+		err = changeAdministratorPasswordTemplate.Execute(&adminPasswordBuffer, changeAdministratorPasswordOptions{
+			NewAdministratorPassword: s.RunConfig.NewAdministratorPassword,
+		})
+		if err != nil {
+			ui.Error(fmt.Sprintf("Error executing Change Administrator Password template: %s", err))
+			return multistep.ActionHalt
+		}
+	}
+
 	var buffer bytes.Buffer
 	err = configureSecureWinRMTemplate.Execute(&buffer, configureSecureWinRMOptions{
-		CertificatePfxBase64Encoded: encodedCert,
-		InstallListenerCommand:      installListenerCommand,
-		AllowBasicCommand:           allowBasicCommand,
-		AllowUnencryptedCommand:     allowUnencryptedCommand,
-		AllowCredSSPCommand:         allowCredSSPCommand,
-		MaxMemoryPerShellCommand:    maxMemoryPerShellCommand,
-		MaxTimeoutMsCommand:         maxTimeoutMsCommand,
+		CertificatePfxBase64Encoded:        encodedCert,
+		InstallListenerCommand:             installListenerCommand,
+		AllowBasicCommand:                  allowBasicCommand,
+		AllowUnencryptedCommand:            allowUnencryptedCommand,
+		AllowCredSSPCommand:                allowCredSSPCommand,
+		MaxMemoryPerShellCommand:           maxMemoryPerShellCommand,
+		MaxTimeoutMsCommand:                maxTimeoutMsCommand,
+		ChangeAdministratorPasswordCommand: adminPasswordBuffer.String(),
 	})
 	if err != nil {
 		ui.Error(fmt.Sprintf("Error executing Secure WinRM User Data template: %s", err))
@@ -59,14 +72,23 @@ func (s *StepGenerateSecureWinRMUserData) Cleanup(multistep.StateBag) {
 	// No cleanup...
 }
 
+type changeAdministratorPasswordOptions struct {
+	NewAdministratorPassword string
+}
+
+var changeAdministratorPasswordTemplate = template.Must(template.New("ChangeAdministratorPassword").Parse(`$user = [adsi]"WinNT://localhost/Administrator,user"
+$user.SetPassword("{{.NewAdministratorPassword}}")
+$user.SetInfo()`))
+
 type configureSecureWinRMOptions struct {
-	CertificatePfxBase64Encoded string
-	InstallListenerCommand      string
-	AllowBasicCommand           string
-	AllowUnencryptedCommand     string
-	AllowCredSSPCommand         string
-	MaxMemoryPerShellCommand    string
-	MaxTimeoutMsCommand         string
+	CertificatePfxBase64Encoded        string
+	InstallListenerCommand             string
+	AllowBasicCommand                  string
+	AllowUnencryptedCommand            string
+	AllowCredSSPCommand                string
+	MaxMemoryPerShellCommand           string
+	MaxTimeoutMsCommand                string
+	ChangeAdministratorPasswordCommand string
 }
 
 //This is needed to because Powershell uses ` for escapes and there's no straightforward way of constructing
@@ -122,6 +144,8 @@ try {
 }
 
 {{.InstallListenerCommand}}
+
+{{.ChangeAdministratorPasswordCommand}}
 
 Write-Host "Restarting WinRM Service..."
 Stop-Service winrm

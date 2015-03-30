@@ -21,12 +21,18 @@ import (
 
 type StepGetPassword struct {
 	WinRMConfig        *wincommon.WinRMConfig
+	RunConfig          *RunConfig
 	GetPasswordTimeout time.Duration
 }
 
 func (s *StepGetPassword) Run(state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
 	instance := state.Get("instance").(*ec2.Instance)
+
+	if s.RunConfig.NewAdministratorPassword != "" {
+		s.WinRMConfig.WinRMPassword = s.RunConfig.NewAdministratorPassword
+		return multistep.ActionContinue
+	}
 
 	var password string
 	var err error

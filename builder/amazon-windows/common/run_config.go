@@ -14,9 +14,11 @@ import (
 type RunConfig struct {
 	AssociatePublicIpAddress bool              `mapstructure:"associate_public_ip_address"`
 	AvailabilityZone         string            `mapstructure:"availability_zone"`
+	ConfigureSecureWinRM     bool              `mapstructure:"winrm_autoconfigure"`
 	IamInstanceProfile       string            `mapstructure:"iam_instance_profile"`
 	InstanceType             string            `mapstructure:"instance_type"`
 	KeyPairPrivateKeyFile    string            `mapstructure:"key_pair_private_key_file"`
+	NewAdministratorPassword string            `mapstructure:"new_administrator_password"`
 	RunTags                  map[string]string `mapstructure:"run_tags"`
 	SourceAmi                string            `mapstructure:"source_ami"`
 	SpotPrice                string            `mapstructure:"spot_price"`
@@ -30,7 +32,6 @@ type RunConfig struct {
 	VpcId                    string            `mapstructure:"vpc_id"`
 	WinRMPrivateIp           bool              `mapstructure:"winrm_private_ip"`
 	WinRMCertificateFile     string            `mapstructure:"winrm_certificate_file"`
-	ConfigureSecureWinRM     bool              `mapstructure:"winrm_autoconfigure"`
 }
 
 func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
