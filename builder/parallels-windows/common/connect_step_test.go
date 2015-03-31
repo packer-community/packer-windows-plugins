@@ -20,7 +20,7 @@ func TestWinRMAddressFunc_UsesPortForwardingFail(t *testing.T) {
 	state.Put("driver", &parallelscommon.DriverMock{IpAddressError: errors.New("Invalid machine state"), MacReturn: "01cd123"})
 	state.Put("vmName", "myvmname")
 
-	f := WinRMAddressFunc(config)
+	f := WinRMAddressFunc(&config)
 	_, err := f(state)
 
 	if err == nil {
@@ -39,7 +39,7 @@ func TestWinRMAddressFunc_UsesPortForwarding(t *testing.T) {
 	state.Put("driver", &parallelscommon.DriverMock{IpAddressReturn: "172.17.4.13", MacReturn: "01cd123"})
 	state.Put("vmName", "myvmname")
 
-	f := WinRMAddressFunc(config)
+	f := WinRMAddressFunc(&config)
 	address, err := f(state)
 
 	if err != nil {

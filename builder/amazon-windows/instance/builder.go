@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mitchellh/goamz/ec2"
 	"github.com/mitchellh/multistep"

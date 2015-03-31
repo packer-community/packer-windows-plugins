@@ -24,7 +24,14 @@ func TestStart(t *testing.T) {
 	// You can comment this line out temporarily during development
 	t.Skip()
 
-	comm, err := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
+	endpoint := &winrm.Endpoint{
+		Host:     "localhost",
+		Port:     5985,
+		HTTPS:    false,
+		Insecure: false,
+		CACert:   nil,
+	}
+	comm, err := New(endpoint, "vagrant", "vagrant", time.Duration(1)*time.Minute)
 	if err != nil {
 		t.Fatalf("error connecting to WinRM: %s", err)
 	}
@@ -59,7 +66,14 @@ func TestUpload(t *testing.T) {
 	// You can comment this line out temporarily during development
 	t.Skip()
 
-	comm, err := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
+	endpoint := &winrm.Endpoint{
+		Host:     "localhost",
+		Port:     5985,
+		HTTPS:    false,
+		Insecure: false,
+		CACert:   nil,
+	}
+	comm, err := New(endpoint, "vagrant", "vagrant", time.Duration(1)*time.Minute)
 	if err != nil {
 		t.Fatalf("error connecting to WinRM: %s", err)
 	}
@@ -81,7 +95,14 @@ func TestUploadDir(t *testing.T) {
 	// You can comment this line out temporarily during development
 	t.Skip()
 
-	comm, err := New(&winrm.Endpoint{"localhost", 5985}, "vagrant", "vagrant", time.Duration(1)*time.Minute)
+	endpoint := &winrm.Endpoint{
+		Host:     "localhost",
+		Port:     5985,
+		HTTPS:    false,
+		Insecure: false,
+		CACert:   nil,
+	}
+	comm, err := New(endpoint, "vagrant", "vagrant", time.Duration(1)*time.Minute)
 	if err != nil {
 		t.Fatalf("error connecting to WinRM: %s", err)
 	}
@@ -91,4 +112,3 @@ func TestUploadDir(t *testing.T) {
 		t.Fatalf("error uploading dir: %s", err)
 	}
 }
-

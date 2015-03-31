@@ -16,7 +16,7 @@ func TestWinRMAddressFunc_UsesPortForwarding(t *testing.T) {
 	state := new(multistep.BasicStateBag)
 	state.Put("winrmHostPort", uint(123))
 
-	f := WinRMAddressFunc(config)
+	f := WinRMAddressFunc(&config)
 	address, err := f(state)
 
 	if err != nil {
