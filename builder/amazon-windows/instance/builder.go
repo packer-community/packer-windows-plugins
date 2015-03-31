@@ -30,7 +30,7 @@ type Config struct {
 	awscommon.AMIConfig    `mapstructure:",squash"`
 	awscommon.BlockDevices `mapstructure:",squash"`
 	winawscommon.RunConfig `mapstructure:",squash"`
-	*wincommon.WinRMConfig `mapstructure:",squash"`
+	wincommon.WinRMConfig  `mapstructure:",squash"`
 
 	AccountId           string `mapstructure:"account_id"`
 	BundleDestination   string `mapstructure:"bundle_destination"`
@@ -190,12 +190,24 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	state.Put("ec2", ec2conn)
 	state.Put("hook", hook)
 	state.Put("ui", ui)
+	state.Put("keyPair", b.config.TemporaryKeyPairName)
 
 	// Build the steps
 	steps := []multistep.Step{
+		&winawscommon.StepGenerateSecureWinRMUserData{
+			RunConfig:            &b.config.RunConfig,
+			WinRMConfig:          &b.config.WinRMConfig,
+			WinRMCertificateFile: b.config.WinRMCertificateFile,
+		},
 		&awscommon.StepSourceAMIInfo{
 			SourceAmi:          b.config.SourceAmi,
 			EnhancedNetworking: b.config.AMIEnhancedNetworking,
+		},
+		&awscommon.StepKeyPair{
+			Debug:          b.config.PackerDebug,
+			DebugKeyPath:   fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
+			KeyPairName:    b.config.TemporaryKeyPairName,
+			PrivateKeyFile: b.config.KeyPairPrivateKeyFile,
 		},
 		&winawscommon.StepSecurityGroup{
 			SecurityGroupIds: b.config.SecurityGroupIds,
@@ -203,21 +215,16 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			VpcId:            b.config.VpcId,
 		},
 		&winawscommon.StepRunSourceInstance{
-			Debug:                    b.config.PackerDebug,
-			SpotPrice:                b.config.SpotPrice,
-			SpotPriceProduct:         b.config.SpotPriceAutoProduct,
-			InstanceType:             b.config.InstanceType,
-			IamInstanceProfile:       b.config.IamInstanceProfile,
-			UserData:                 b.config.UserData,
-			UserDataFile:             b.config.UserDataFile,
-			SourceAMI:                b.config.SourceAmi,
-			SubnetId:                 b.config.SubnetId,
-			AssociatePublicIpAddress: b.config.AssociatePublicIpAddress,
-			AvailabilityZone:         b.config.AvailabilityZone,
-			BlockDevices:             b.config.BlockDevices,
-			Tags:                     b.config.RunTags,
+			Debug:        b.config.PackerDebug,
+			BlockDevices: &b.config.BlockDevices,
+			RunConfig:    &b.config.RunConfig,
 		},
-		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, b.config.WinRMConfig),
+		&winawscommon.StepGetPassword{
+			WinRMConfig:        &b.config.WinRMConfig,
+			RunConfig:          &b.config.RunConfig,
+			GetPasswordTimeout: 5 * time.Minute,
+		},
+		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, &b.config.WinRMConfig),
 		&common.StepProvision{},
 		&awsinstcommon.StepUploadX509Cert{},
 		&awsinstcommon.StepBundleVolume{
