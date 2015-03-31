@@ -104,9 +104,6 @@ const (
 )
 
 var configureSecureWinRMTemplate = template.Must(template.New("ConfigureSecureWinRM").Parse(`<powershell>
-Write-Host "Setting execution policy to RemoteSigned..."
-Set-ExecutionPolicy RemoteSigned
-
 Write-Host "Disabling WinRM over HTTP..."
 Disable-NetFirewallRule -Name "WINRM-HTTP-In-TCP"
 Disable-NetFirewallRule -Name "WINRM-HTTP-In-TCP-PUBLIC"
