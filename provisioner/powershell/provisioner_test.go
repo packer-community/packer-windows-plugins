@@ -76,7 +76,7 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 	}
 
 	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}}; exit $LastExitCode}\"" {
-		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}} }\", but got %s", p.config.ExecuteCommand)
+		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}}; exit $LastExitCode}\", but got %s", p.config.ExecuteCommand)
 	}
 
 	if p.config.ElevatedExecuteCommand != "{{.Vars}}{{.Path}}" {
