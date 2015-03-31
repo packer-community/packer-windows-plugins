@@ -144,5 +144,6 @@ func newEndpoint(address string, config *WinRMConfig) (*winrm.Endpoint, error) {
 		Port:     iport,
 		HTTPS:    !config.WinRMHttp,
 		Insecure: config.WinRMIgnoreCertChain,
+		CACert:   &config.WinRMCACertBytes,
 	}, nil
 }
