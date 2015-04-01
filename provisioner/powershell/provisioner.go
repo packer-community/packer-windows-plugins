@@ -77,6 +77,11 @@ type config struct {
 	ElevatedUser     string `mapstructure:"elevated_user"`
 	ElevatedPassword string `mapstructure:"elevated_password"`
 
+	// Valid Exit Codes - 0 is not always the only valid error code!
+	// See http://www.symantec.com/connect/articles/windows-system-error-codes-exit-codes-description for examples
+	// such as 3010 - "The requested operation is successful. Changes will not be effective until the system is rebooted."
+	ValidExitCodes []int `mapstructure:"valid_exit_codes"`
+
 	startRetryTimeout time.Duration
 	tpl               *packer.ConfigTemplate
 }
@@ -115,7 +120,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	}
 
 	if p.config.ExecuteCommand == "" {
-		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}} }"`
+		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}}; exit $LastExitCode}"`
 	}
 
 	if p.config.ElevatedExecuteCommand == "" {
@@ -155,6 +160,10 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	if p.config.ElevatedUser == "" && p.config.ElevatedPassword != "" {
 		errs = packer.MultiErrorAppend(errs,
 			errors.New("Must supply an 'elevated_user' if 'elevated_password' provided"))
+	}
+
+	if p.config.ValidExitCodes == nil {
+		p.config.ValidExitCodes = []int{0}
 	}
 
 	if p.config.Script != "" {
@@ -319,8 +328,15 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		// Close the original file since we copied it
 		f.Close()
 
-		if cmd.ExitStatus != 0 {
-			return fmt.Errorf("Script exited with non-zero exit status: %d", cmd.ExitStatus)
+		// Check exit code against allowed codes (likely just 0)
+		validExitCode := false
+		for _, v := range p.config.ValidExitCodes {
+			if cmd.ExitStatus == v {
+				validExitCode = true
+			}
+		}
+		if !validExitCode {
+			return fmt.Errorf("Script exited with non-zero exit status: %d. Allowed exit codes are: %s", cmd.ExitStatus, p.config.ValidExitCodes)
 		}
 	}
 

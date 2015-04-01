@@ -75,12 +75,24 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 		t.Error("expected elevated_password to be empty")
 	}
 
-	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}} }\"" {
-		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}} }\", but got %s", p.config.ExecuteCommand)
+	if p.config.ExecuteCommand != "powershell \"& { {{.Vars}}{{.Path}}; exit $LastExitCode}\"" {
+		t.Fatalf("Default command should be powershell \"& { {{.Vars}}{{.Path}}; exit $LastExitCode}\", but got %s", p.config.ExecuteCommand)
 	}
 
 	if p.config.ElevatedExecuteCommand != "{{.Vars}}{{.Path}}" {
 		t.Fatalf("Default command should be powershell {{.Vars}}{{.Path}}, but got %s", p.config.ElevatedExecuteCommand)
+	}
+
+	if p.config.ValidExitCodes == nil {
+		t.Fatalf("ValidExitCodes should not be nil")
+	}
+	if p.config.ValidExitCodes != nil {
+		expCodes := []int{0}
+		for i, v := range p.config.ValidExitCodes {
+			if v != expCodes[i] {
+				t.Fatalf("Expected ValidExitCodes don't match actual")
+			}
+		}
 	}
 
 	if p.config.ElevatedEnvVarFormat != `$env:%s="%s"; ` {
@@ -311,6 +323,52 @@ func testObjects() (packer.Ui, packer.Communicator) {
 	return ui, new(packer.MockCommunicator)
 }
 
+func TestProvisionerProvision_ValidExitCodes(t *testing.T) {
+	config := testConfig()
+	delete(config, "inline")
+
+	// Defaults provided by Packer
+	config["remote_path"] = "c:/Windows/Temp/inlineScript.bat"
+	config["inline"] = []string{"whoami"}
+	ui := testUi()
+	p := new(Provisioner)
+
+	// Defaults provided by Packer
+	p.config.PackerBuildName = "vmware"
+	p.config.PackerBuilderType = "iso"
+	p.config.ValidExitCodes = []int{0, 200}
+	comm := new(packer.MockCommunicator)
+	comm.StartExitStatus = 200
+	p.Prepare(config)
+	err := p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
+}
+
+func TestProvisionerProvision_InvalidExitCodes(t *testing.T) {
+	config := testConfig()
+	delete(config, "inline")
+
+	// Defaults provided by Packer
+	config["remote_path"] = "c:/Windows/Temp/inlineScript.bat"
+	config["inline"] = []string{"whoami"}
+	ui := testUi()
+	p := new(Provisioner)
+
+	// Defaults provided by Packer
+	p.config.PackerBuildName = "vmware"
+	p.config.PackerBuilderType = "iso"
+	p.config.ValidExitCodes = []int{0, 200}
+	comm := new(packer.MockCommunicator)
+	comm.StartExitStatus = 201 // Invalid!
+	p.Prepare(config)
+	err := p.Provision(ui, comm)
+	if err == nil {
+		t.Fatal("should have error")
+	}
+}
+
 func TestProvisionerProvision_Inline(t *testing.T) {
 	config := testConfig()
 	delete(config, "inline")
@@ -331,7 +389,7 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.bat }"`
+	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.bat; exit $LastExitCode}"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -350,7 +408,7 @@ func TestProvisionerProvision_Inline(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand = `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.bat }"`
+	expectedCommand = `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"iso\"; $env:PACKER_BUILD_NAME=\"vmware\"; c:/Windows/Temp/inlineScript.bat; exit $LastExitCode}"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -377,7 +435,7 @@ func TestProvisionerProvision_Scripts(t *testing.T) {
 	}
 
 	//powershell -Command "$env:PACKER_BUILDER_TYPE=''"; powershell -Command "$env:PACKER_BUILD_NAME='foobuild'";  powershell -Command c:/Windows/Temp/script.ps1
-	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1 }"`
+	expectedCommand := `powershell "& { $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1; exit $LastExitCode}"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -410,7 +468,7 @@ func TestProvisionerProvision_ScriptsWithEnvVars(t *testing.T) {
 		t.Fatal("should not have error")
 	}
 
-	expectedCommand := `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1 }"`
+	expectedCommand := `powershell "& { $env:BAR=\"BAZ\"; $env:FOO=\"BAR\"; $env:PACKER_BUILDER_TYPE=\"footype\"; $env:PACKER_BUILD_NAME=\"foobuild\"; c:/Windows/Temp/script.ps1; exit $LastExitCode}"`
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {
@@ -524,7 +582,7 @@ func TestProvision_createCommandText(t *testing.T) {
 
 	// Non-elevated
 	cmd, _ := p.createCommandText()
-	if cmd != "powershell \"& { $env:PACKER_BUILDER_TYPE=\\\"\\\"; $env:PACKER_BUILD_NAME=\\\"\\\"; c:/Windows/Temp/script.ps1 }\"" {
+	if cmd != "powershell \"& { $env:PACKER_BUILDER_TYPE=\\\"\\\"; $env:PACKER_BUILD_NAME=\\\"\\\"; c:/Windows/Temp/script.ps1; exit $LastExitCode}\"" {
 		t.Fatalf("Got unexpected non-elevated command: %s", cmd)
 	}
 
