@@ -98,7 +98,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			WinRMPort:        b.config.WinRMPort,
 			VpcId:            b.config.VpcId,
 		},
-		&awscommon.StepRunSourceInstance{
+		&winawscommon.StepRunSourceInstance{
 			Debug:                    b.config.PackerDebug,
 			ExpectedRootDevice:       "ebs",
 			SpotPrice:                b.config.SpotPrice,
