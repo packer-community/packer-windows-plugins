@@ -47,14 +47,14 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 	}
 
 	ui.Say("Launching a source AWS instance...")
-	imageResp, err := ec2conn.Images([]string{s.SourceAMI}, ec2.NewFilter())
+	imageResp, err := ec2conn.Images([]string{s.RunConfig.SourceAmi}, ec2.NewFilter())
 	if err != nil {
 		state.Put("error", fmt.Errorf("There was a problem with the source AMI: %s", err))
 		return multistep.ActionHalt
 	}
 
 	if len(imageResp.Images) != 1 {
-		state.Put("error", fmt.Errorf("The source AMI '%s' could not be found.", s.SourceAMI))
+		state.Put("error", fmt.Errorf("The source AMI '%s' could not be found.", s.RunConfig.SourceAmi))
 		return multistep.ActionHalt
 	}
 
@@ -66,11 +66,11 @@ func (s *StepRunSourceInstance) Run(state multistep.StateBag) multistep.StepActi
 		return multistep.ActionHalt
 	}
 
-	spotPrice := s.SpotPrice
+	spotPrice := s.RunConfig.SpotPrice
 	if spotPrice == "auto" {
 		ui.Message(fmt.Sprintf(
 			"Finding spot price for %s %s...",
-			s.SpotPriceProduct, s.InstanceType))
+			s.RunConfig.SpotPriceAutoProduct, s.RunConfig.InstanceType))
 
 		// Detect the spot price
 		startTime := time.Now().Add(-1 * time.Hour)
