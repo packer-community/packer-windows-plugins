@@ -21,7 +21,7 @@ import (
 )
 
 // The unique ID for this builder
-const BuilderId = "mitchellh.amazon.instance"
+const BuilderId = "packercommunity.windows.amazon.instance"
 
 // Config is the configuration that is chained through the steps and
 // settable from the template.

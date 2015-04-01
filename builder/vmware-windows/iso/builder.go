@@ -17,7 +17,7 @@ import (
 	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
-const BuilderIdESX = "mitchellh.vmware-esx"
+const BuilderIdESX = "packercommunity.windows.vmware.iso"
 
 type Builder struct {
 	config config

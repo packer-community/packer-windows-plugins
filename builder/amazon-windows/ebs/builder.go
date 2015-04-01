@@ -20,7 +20,7 @@ import (
 )
 
 // The unique ID for this builder
-const BuilderId = "packercommunity.amazonwinebs"
+const BuilderId = "packercommunity.windows.amazon.ebs"
 
 type config struct {
 	common.PackerConfig    `mapstructure:",squash"`
