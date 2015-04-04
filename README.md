@@ -8,7 +8,7 @@ The plugins are currently available as a **Release Candidate** and are quite sta
 
 See the list of [outstanding issues](https://github.com/packer-community/packer-windows-plugins/issues?q=is%3Aopen+is%3Aissue+label%3Abug) for further detail.
 
-[![wercker status](https://app.wercker.com/status/900b58d8e99fca90bcfcd599a5e5219e/m "wercker status")](https://app.wercker.com/project/bykey/900b58d8e99fca90bcfcd599a5e5219e)
+[![wercker status](https://app.wercker.com/status/900b58d8e99fca90bcfcd599a5e5219e/m/master "wercker status")](https://app.wercker.com/project/bykey/900b58d8e99fca90bcfcd599a5e5219e)
 [![Coverage Status](https://coveralls.io/repos/packer-community/packer-windows-plugins/badge.png?branch=HEAD)](https://coveralls.io/r/packer-community/packer-windows-plugins)
 
 ### The Plugins
