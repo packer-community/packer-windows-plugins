@@ -103,9 +103,6 @@ func TestProvisionerProvision_Success(t *testing.T) {
 	// Defaults provided by Packer
 	comm := new(packer.MockCommunicator)
 	p.Prepare(config)
-	//	waitForRestart = func(p *Provisioner) error {
-	//		return nil
-	//	}
 	waitForCommunicatorOld := waitForCommunicator
 	waitForCommunicator = func(p *Provisioner) error {
 		return nil
@@ -116,6 +113,35 @@ func TestProvisionerProvision_Success(t *testing.T) {
 	}
 
 	expectedCommand := DefaultRestartCommand
+
+	// Should run the command without alteration
+	if comm.StartCmd.Command != expectedCommand {
+		t.Fatalf("Expect command to be: %s, got %s", expectedCommand, comm.StartCmd.Command)
+	}
+	// Set this back!
+	waitForCommunicator = waitForCommunicatorOld
+}
+
+func TestProvisionerProvision_CustomCommand(t *testing.T) {
+	config := testConfig()
+
+	// Defaults provided by Packer
+	ui := testUi()
+	p := new(Provisioner)
+	expectedCommand := "specialrestart.exe -NOW"
+	config["restart_command"] = expectedCommand
+
+	// Defaults provided by Packer
+	comm := new(packer.MockCommunicator)
+	p.Prepare(config)
+	waitForCommunicatorOld := waitForCommunicator
+	waitForCommunicator = func(p *Provisioner) error {
+		return nil
+	}
+	err := p.Provision(ui, comm)
+	if err != nil {
+		t.Fatal("should not have error")
+	}
 
 	// Should run the command without alteration
 	if comm.StartCmd.Command != expectedCommand {

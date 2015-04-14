@@ -86,7 +86,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	p.cancel = make(chan struct{})
 
 	var cmd *packer.RemoteCmd
-	command := DefaultRestartCommand
+	command := p.config.RestartCommand
 	err := p.retryable(func() error {
 		cmd = &packer.RemoteCmd{Command: command}
 		return cmd.StartWithUi(comm, ui)
