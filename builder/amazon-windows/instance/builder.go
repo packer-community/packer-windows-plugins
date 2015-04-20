@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/goamz/ec2"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
 	"github.com/mitchellh/multistep"
 	awscommon "github.com/mitchellh/packer/builder/amazon/common"
 	awsinstcommon "github.com/mitchellh/packer/builder/amazon/instance"
@@ -173,17 +173,12 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 }
 
 func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packer.Artifact, error) {
-	region, err := b.config.Region()
+	config, err := b.config.Config()
 	if err != nil {
 		return nil, err
 	}
 
-	auth, err := b.config.AccessConfig.Auth()
-	if err != nil {
-		return nil, err
-	}
-
-	ec2conn := ec2.New(auth, region)
+	ec2conn := ec2.New(config)
 
 	// Setup the state bag and initial state for the steps
 	state := new(multistep.BasicStateBag)

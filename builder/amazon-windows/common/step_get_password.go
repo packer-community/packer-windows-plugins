@@ -10,9 +10,7 @@ import (
 	"log"
 	"time"
 
-	"code.google.com/p/gosshold/ssh/terminal"
-
-	"github.com/mitchellh/goamz/ec2"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
 	"github.com/mitchellh/multistep"
 	"github.com/mitchellh/packer/packer"
 
@@ -40,7 +38,7 @@ func (s *StepGetPassword) Run(state multistep.StateBag) multistep.StepAction {
 	cancel := make(chan struct{})
 	waitDone := make(chan bool, 1)
 	go func() {
-		ui.Say(fmt.Sprintf("Retrieving auto-generated password for instance %s...", instance.InstanceId))
+		ui.Say(fmt.Sprintf("Retrieving auto-generated password for instance %s...", *instance.InstanceID))
 
 		password, err = s.waitForPassword(state, cancel)
 		if err != nil {
@@ -50,7 +48,7 @@ func (s *StepGetPassword) Run(state multistep.StateBag) multistep.StepAction {
 		waitDone <- true
 	}()
 
-	log.Printf("Waiting to retrieve instance %s password, up to timeout: %s", instance.InstanceId, s.GetPasswordTimeout)
+	log.Printf("Waiting to retrieve instance %s password, up to timeout: %s", *instance.InstanceID, s.GetPasswordTimeout)
 	timeout := time.After(s.GetPasswordTimeout)
 
 WaitLoop:
@@ -69,7 +67,7 @@ WaitLoop:
 			break WaitLoop
 
 		case <-timeout:
-			err := fmt.Errorf(fmt.Sprintf("Timeout retrieving password for instance %s", instance.InstanceId))
+			err := fmt.Errorf(fmt.Sprintf("Timeout retrieving password for instance %s", *instance.InstanceID))
 			state.Put("error", err)
 			ui.Error(err.Error())
 			close(cancel)
@@ -103,14 +101,17 @@ func (s *StepGetPassword) waitForPassword(state multistep.StateBag, cancel <-cha
 		case <-time.After(20 * time.Second):
 		}
 
-		resp, err := ec2conn.GetPasswordData(instance.InstanceId)
+		input := &ec2.GetPasswordDataInput{
+			InstanceID: instance.InstanceID,
+		}
+		resp, err := ec2conn.GetPasswordData(input)
 		if err != nil {
 			err := fmt.Errorf("Error retrieving auto-generated instance password: %s", err)
 			return "", err
 		}
 
-		if resp.PasswordData != "" {
-			decryptedPassword, err := decryptPasswordDataWithPrivateKey(resp.PasswordData, []byte(privateKey))
+		if *resp.PasswordData != "" {
+			decryptedPassword, err := decryptPasswordDataWithPrivateKey(*resp.PasswordData, []byte(privateKey))
 			if err != nil {
 				err := fmt.Errorf("Error decrypting auto-generated instance password: %s", err)
 				return "", err
@@ -133,20 +134,10 @@ func decryptPasswordDataWithPrivateKey(passwordData string, pemBytes []byte) (st
 	block, _ := pem.Decode(pemBytes)
 	var asn1Bytes []byte
 	if _, ok := block.Headers["DEK-Info"]; ok {
-		fmt.Printf("Encrypted private key. Please enter passphrase: ")
-		password, err := terminal.ReadPassword(0)
-		fmt.Printf("\n")
-		if err != nil {
-			return "", err
-		}
-
-		asn1Bytes, err = x509.DecryptPEMBlock(block, password)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		asn1Bytes = block.Bytes
+		return "", fmt.Errorf("Cannot decrypt instance password as the keypair is protected with a passphrase")
 	}
+
+	asn1Bytes = block.Bytes
 
 	key, err := x509.ParsePKCS1PrivateKey(asn1Bytes)
 	if err != nil {

@@ -92,7 +92,7 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 
 	if c.ConfigureSecureWinRM {
 		if c.UserData != "" || c.UserDataFile != "" {
-			errs = append(errs, fmt.Errorf("winrm_autoconfigure cannot be used in conjunction with user_data or user_data_file."))
+			errs = append(errs, fmt.Errorf("winrm_autoconfigure cannot be used in conjunction with user_data or user_data_file"))
 		}
 
 		if c.WinRMCertificateFile == "" {

@@ -13,6 +13,8 @@ import (
 	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
+//A StepGenerateSecureWinRMUserData contains the state necessary to run the step to
+//generate EC2 user-data for the given RunConfig.
 type StepGenerateSecureWinRMUserData struct {
 	WinRMConfig          *wincommon.WinRMConfig
 	WinRMCertificateFile string
@@ -50,13 +52,14 @@ func (s *StepGenerateSecureWinRMUserData) Run(state multistep.StateBag) multiste
 
 	var buffer bytes.Buffer
 	err = configureSecureWinRMTemplate.Execute(&buffer, configureSecureWinRMOptions{
-		CertificatePfxBase64Encoded:        encodedCert,
-		InstallListenerCommand:             installListenerCommand,
-		AllowBasicCommand:                  allowBasicCommand,
-		AllowUnencryptedCommand:            allowUnencryptedCommand,
-		AllowCredSSPCommand:                allowCredSSPCommand,
-		MaxMemoryPerShellCommand:           maxMemoryPerShellCommand,
-		MaxTimeoutMsCommand:                maxTimeoutMsCommand,
+		CertificatePfxBase64Encoded: encodedCert,
+		InstallListenerCommand:      installListenerCommand,
+		AllowBasicCommand:           allowBasicCommand,
+		AllowUnencryptedCommand:     allowUnencryptedCommand,
+		AllowCredSSPCommand:         allowCredSSPCommand,
+		MaxMemoryPerShellCommand:    maxMemoryPerShellCommand,
+		MaxTimeoutMsCommand:         maxTimeoutMsCommand,
+
 		ChangeAdministratorPasswordCommand: adminPasswordBuffer.String(),
 	})
 	if err != nil {
