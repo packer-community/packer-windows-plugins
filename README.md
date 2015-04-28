@@ -4,9 +4,7 @@ A suite of [Packer](http://www.packer.io/) plugins for provisioning Windows mach
 
 ### Status
 
-The plugins are currently available as a **Release Candidate** and are quite stable.
-
-See the list of [outstanding issues](https://github.com/packer-community/packer-windows-plugins/issues?q=is%3Aopen+is%3Aissue+label%3Abug) for further detail.
+The plugins are generally available and actively maintained.
 
 [![wercker status](https://app.wercker.com/status/900b58d8e99fca90bcfcd599a5e5219e/m/master "wercker status")](https://app.wercker.com/project/bykey/900b58d8e99fca90bcfcd599a5e5219e)
 [![Coverage Status](https://coveralls.io/repos/packer-community/packer-windows-plugins/badge.png?branch=HEAD)](https://coveralls.io/r/packer-community/packer-windows-plugins)
@@ -34,13 +32,19 @@ The plugins can be used by downloading pre-built binaries, or by building the pr
 
 #### Using pre-built binaries
 
-1. Install packer
+1. Install Packer
 1. Download the latest release for your host environment: [packer-windows-plugins/releases](https://github.com/packer-community/packer-windows-plugins/releases)
 1. Unzip the plugin binaries to [a location where Packer will detect them at run-time](https://packer.io/docs/extend/plugins.html), such as any of the following:
   - The directory where the packer binary is.
   - `~/.packer.d/plugins` on Unix systems or `%APPDATA%/packer.d/plugins` on Windows.
   - The current working directory.
 1. Change to a directory where you have packer templates, and run as usual.
+
+#### Using Chocolatey
+
+```
+choco install packer-windows-plugins -pre # Only until the package is moderated
+```
 
 #### Using a local build
 
