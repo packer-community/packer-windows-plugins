@@ -54,7 +54,7 @@ func (c *Communicator) Start(rc *packer.RemoteCmd) error {
 
 	// Create a new shell process on the guest
 	params := winrm.DefaultParameters()
-	params.Timeout = iso8601.FormatDuration(time.Minute * 120)
+	params.Timeout = iso8601.FormatDuration(time.Hour * 24)
 	client, err := winrm.NewClientWithParameters(c.endpoint, c.user, c.password, params)
 	if err != nil {
 		return err
