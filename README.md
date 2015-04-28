@@ -30,6 +30,20 @@ We have created the following Windows-specific plugins:
 
 The plugins can be used by downloading pre-built binaries, or by building the project locally and ensuring the binaries are in the correct location.
 
+#### On Mac OSX using Homebrew
+
+If you are using [Homebrew](http://brew.sh) you can follow these steps to install the plugins:
+
+```
+localhost$ brew install https://raw.githubusercontent.com/packer-community/packer-windows-plugins-brew/master/packer-windows-plugins.rb
+```
+
+#### On Windows Using Chocolatey
+
+```
+choco install packer-windows-plugins -pre # Only until the package is moderated
+```
+
 #### Using pre-built binaries
 
 1. Install Packer
@@ -39,12 +53,6 @@ The plugins can be used by downloading pre-built binaries, or by building the pr
   - `~/.packer.d/plugins` on Unix systems or `%APPDATA%/packer.d/plugins` on Windows.
   - The current working directory.
 1. Change to a directory where you have packer templates, and run as usual.
-
-#### Using Chocolatey
-
-```
-choco install packer-windows-plugins -pre # Only until the package is moderated
-```
 
 #### Using a local build
 
