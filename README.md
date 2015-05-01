@@ -10,7 +10,7 @@ The plugins are generally available and actively maintained.
 [![Coverage Status](https://coveralls.io/repos/packer-community/packer-windows-plugins/badge.png?branch=HEAD)](https://coveralls.io/r/packer-community/packer-windows-plugins)
 
 ### The Plugins
-
+-
 We have created the following Windows-specific plugins:
 
 #### Builders
@@ -35,13 +35,13 @@ The plugins can be used by downloading pre-built binaries, or by building the pr
 If you are using [Homebrew](http://brew.sh) you can follow these steps to install the plugins:
 
 ```
-localhost$ brew install https://raw.githubusercontent.com/packer-community/packer-windows-plugins-brew/master/packer-windows-plugins.rb
+brew install https://raw.githubusercontent.com/packer-community/packer-windows-plugins-brew/master/packer-windows-plugins.rb
 ```
 
 #### On Windows Using Chocolatey
 
 ```
-choco install packer-windows-plugins -pre # Only until the package is moderated
+choco install packer-windows-plugins
 ```
 
 #### Using pre-built binaries
