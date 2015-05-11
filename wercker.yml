@@ -32,6 +32,4 @@ deploy:
             token: $GITHUB_TOKEN
             input: dist
             replace: true
-            version: v1.0.1-latest
             pre_release: true
-            replace: true
