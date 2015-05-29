@@ -3,13 +3,15 @@ package common
 import (
 	"errors"
 	"fmt"
-	"github.com/mitchellh/goamz/ec2"
-	"github.com/mitchellh/multistep"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/awslabs/aws-sdk-go/aws"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
+	"github.com/mitchellh/multistep"
 )
 
 // StateRefreshFunc is a function type used for StateChangeConf that is
@@ -36,9 +38,13 @@ type StateChangeConf struct {
 // an AMI for state changes.
 func AMIStateRefreshFunc(conn *ec2.EC2, imageId string) StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		resp, err := conn.Images([]string{imageId}, ec2.NewFilter())
+		input := &ec2.DescribeImagesInput{
+			ImageIDs: []*string{&imageId},
+		}
+		resp, err := conn.DescribeImages(input)
+
 		if err != nil {
-			if ec2err, ok := err.(*ec2.Error); ok && ec2err.Code == "InvalidAMIID.NotFound" {
+			if ec2err, ok := err.(*aws.APIError); ok && ec2err.Code == "InvalidAMIID.NotFound" {
 				// Set this to nil as if we didn't find anything.
 				resp = nil
 			} else if isTransientNetworkError(err) {
@@ -57,17 +63,20 @@ func AMIStateRefreshFunc(conn *ec2.EC2, imageId string) StateRefreshFunc {
 		}
 
 		i := resp.Images[0]
-		return i, i.State, nil
+		return i, *i.State, nil
 	}
 }
 
 // InstanceStateRefreshFunc returns a StateRefreshFunc that is used to watch
 // an EC2 instance.
-func InstanceStateRefreshFunc(conn *ec2.EC2, instanceId string) StateRefreshFunc {
+func InstanceStateRefreshFunc(conn *ec2.EC2, i *ec2.Instance) StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		resp, err := conn.Instances([]string{instanceId}, ec2.NewFilter())
+		input := &ec2.DescribeInstancesInput{
+			InstanceIDs: []*string{i.InstanceID},
+		}
+		resp, err := conn.DescribeInstances(input)
 		if err != nil {
-			if ec2err, ok := err.(*ec2.Error); ok && ec2err.Code == "InvalidInstanceID.NotFound" {
+			if ec2err, ok := err.(*aws.APIError); ok && ec2err.Code == "InvalidInstanceID.NotFound" {
 				// Set this to nil as if we didn't find anything.
 				resp = nil
 			} else if isTransientNetworkError(err) {
@@ -85,8 +94,8 @@ func InstanceStateRefreshFunc(conn *ec2.EC2, instanceId string) StateRefreshFunc
 			return nil, "", nil
 		}
 
-		i := &resp.Reservations[0].Instances[0]
-		return i, i.State.Name, nil
+		i := resp.Reservations[0].Instances[0]
+		return i, *i.State.Name, nil
 	}
 }
 
@@ -94,9 +103,12 @@ func InstanceStateRefreshFunc(conn *ec2.EC2, instanceId string) StateRefreshFunc
 // a spot request for state changes.
 func SpotRequestStateRefreshFunc(conn *ec2.EC2, spotRequestId string) StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		resp, err := conn.DescribeSpotRequests([]string{spotRequestId}, ec2.NewFilter())
+		input := &ec2.DescribeSpotInstanceRequestsInput{
+			SpotInstanceRequestIDs: []*string{&spotRequestId},
+		}
+		resp, err := conn.DescribeSpotInstanceRequests(input)
 		if err != nil {
-			if ec2err, ok := err.(*ec2.Error); ok && ec2err.Code == "InvalidSpotInstanceRequestID.NotFound" {
+			if ec2err, ok := err.(*aws.APIError); ok && ec2err.Code == "InvalidSpotInstanceRequestID.NotFound" {
 				// Set this to nil as if we didn't find anything.
 				resp = nil
 			} else if isTransientNetworkError(err) {
@@ -108,14 +120,14 @@ func SpotRequestStateRefreshFunc(conn *ec2.EC2, spotRequestId string) StateRefre
 			}
 		}
 
-		if resp == nil || len(resp.SpotRequestResults) == 0 {
+		if resp == nil || len(resp.SpotInstanceRequests) == 0 {
 			// Sometimes AWS has consistency issues and doesn't see the
 			// SpotRequest. Return an empty state.
 			return nil, "", nil
 		}
 
-		i := resp.SpotRequestResults[0]
-		return i, i.State, nil
+		i := resp.SpotInstanceRequests[0]
+		return i, *i.State, nil
 	}
 }
 

@@ -120,7 +120,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	}
 
 	if p.config.ExecuteCommand == "" {
-		p.config.ExecuteCommand = `powershell "& { {{.Vars}}{{.Path}}; exit $LastExitCode}"`
+		p.config.ExecuteCommand = `powershell -ExecutionPolicy Bypass "& { {{.Vars}}{{.Path}} }"`
 	}
 
 	if p.config.ElevatedExecuteCommand == "" {

@@ -53,7 +53,7 @@ $t.XmlText = @'
   <Actions Context="Author">
     <Exec>
       <Command>cmd</Command>
-	  <Arguments>/c powershell.exe -EncodedCommand {{.EncodedCommand}} &gt; %TEMP%\{{.TaskName}}.out 2&gt;&amp;1</Arguments>
+	  <Arguments>/c powershell.exe -ExecutionPolicy Bypass -EncodedCommand {{.EncodedCommand}} &gt; %TEMP%\{{.TaskName}}.out 2&gt;&amp;1</Arguments>
     </Exec>
   </Actions>
 </Task>

@@ -6,9 +6,11 @@
 package ebs
 
 import (
+	"fmt"
 	"log"
+	"time"
 
-	"github.com/mitchellh/goamz/ec2"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
 	"github.com/mitchellh/multistep"
 	awscommon "github.com/mitchellh/packer/builder/amazon/common"
 	"github.com/mitchellh/packer/common"
@@ -18,7 +20,7 @@ import (
 )
 
 // The unique ID for this builder
-const BuilderId = "mitchellh.amazonebs"
+const BuilderId = "packercommunity.windows.amazon.ebs"
 
 type config struct {
 	common.PackerConfig    `mapstructure:",squash"`
@@ -65,17 +67,12 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 }
 
 func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packer.Artifact, error) {
-	region, err := b.config.Region()
+	config, err := b.config.Config()
 	if err != nil {
 		return nil, err
 	}
 
-	auth, err := b.config.AccessConfig.Auth()
-	if err != nil {
-		return nil, err
-	}
-
-	ec2conn := ec2.New(auth, region)
+	ec2conn := ec2.New(config)
 
 	// Setup the state bag and initial state for the steps
 	state := new(multistep.BasicStateBag)
@@ -83,15 +80,24 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	state.Put("ec2", ec2conn)
 	state.Put("hook", hook)
 	state.Put("ui", ui)
-	// Required by StepRunSourceInstance. Seems a better alternative
-	// to duplicating ~300 lines of code just to remove it as a dependency
-	state.Put("keyPair", "")
+	state.Put("keyPair", b.config.TemporaryKeyPairName)
 
 	// Build the steps
 	steps := []multistep.Step{
+		&winawscommon.StepGenerateSecureWinRMUserData{
+			RunConfig:            &b.config.RunConfig,
+			WinRMConfig:          &b.config.WinRMConfig,
+			WinRMCertificateFile: b.config.WinRMCertificateFile,
+		},
 		&awscommon.StepSourceAMIInfo{
 			SourceAmi:          b.config.SourceAmi,
 			EnhancedNetworking: b.config.AMIEnhancedNetworking,
+		},
+		&awscommon.StepKeyPair{
+			Debug:          b.config.PackerDebug,
+			DebugKeyPath:   fmt.Sprintf("ec2_%s.pem", b.config.PackerBuildName),
+			KeyPairName:    b.config.TemporaryKeyPairName,
+			PrivateKeyFile: b.config.KeyPairPrivateKeyFile,
 		},
 		&winawscommon.StepSecurityGroup{
 			SecurityGroupIds: b.config.SecurityGroupIds,
@@ -99,22 +105,17 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			VpcId:            b.config.VpcId,
 		},
 		&winawscommon.StepRunSourceInstance{
-			Debug:                    b.config.PackerDebug,
-			ExpectedRootDevice:       "ebs",
-			SpotPrice:                b.config.SpotPrice,
-			SpotPriceProduct:         b.config.SpotPriceAutoProduct,
-			InstanceType:             b.config.InstanceType,
-			UserData:                 b.config.UserData,
-			UserDataFile:             b.config.UserDataFile,
-			SourceAMI:                b.config.SourceAmi,
-			IamInstanceProfile:       b.config.IamInstanceProfile,
-			SubnetId:                 b.config.SubnetId,
-			AssociatePublicIpAddress: b.config.AssociatePublicIpAddress,
-			AvailabilityZone:         b.config.AvailabilityZone,
-			BlockDevices:             b.config.BlockDevices,
-			Tags:                     b.config.RunTags,
+			Debug:              b.config.PackerDebug,
+			ExpectedRootDevice: "ebs",
+			BlockDevices:       &b.config.BlockDevices,
+			RunConfig:          &b.config.RunConfig,
 		},
-		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, b.config.WinRMConfig),
+		&winawscommon.StepGetPassword{
+			WinRMConfig:        &b.config.WinRMConfig,
+			RunConfig:          &b.config.RunConfig,
+			GetPasswordTimeout: 5 * time.Minute,
+		},
+		winawscommon.NewConnectStep(ec2conn, b.config.WinRMPrivateIp, &b.config.WinRMConfig),
 		&common.StepProvision{},
 		&stepStopInstance{SpotPrice: b.config.SpotPrice},
 		// TODO(mitchellh): verify works with spots

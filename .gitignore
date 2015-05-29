@@ -27,3 +27,7 @@ _testmain.go
 *.cov
 bin
 pkg
+
+#IntelliJ Go Project Files
+.idea
+*.iml

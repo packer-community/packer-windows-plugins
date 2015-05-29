@@ -2,12 +2,14 @@ package common
 
 import (
 	"fmt"
-	"github.com/mitchellh/goamz/ec2"
+	"log"
+	"time"
+
+	"github.com/awslabs/aws-sdk-go/aws"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
 	"github.com/mitchellh/multistep"
 	"github.com/mitchellh/packer/common/uuid"
 	"github.com/mitchellh/packer/packer"
-	"log"
-	"time"
 )
 
 type StepSecurityGroup struct {
@@ -33,13 +35,14 @@ func (s *StepSecurityGroup) Run(state multistep.StateBag) multistep.StepAction {
 	}
 
 	// Create the group
+	// Create the group
 	ui.Say("Creating temporary security group for this instance...")
 	groupName := fmt.Sprintf("packer %s", uuid.TimeOrderedUUID())
 	log.Printf("Temporary group name: %s", groupName)
-	group := ec2.SecurityGroup{
-		Name:        groupName,
-		Description: "Temporary group for Packer",
-		VpcId:       s.VpcId,
+	group := &ec2.CreateSecurityGroupInput{
+		GroupName:   &groupName,
+		Description: aws.String("Temporary group for Packer"),
+		VPCID:       &s.VpcId,
 	}
 	groupResp, err := ec2conn.CreateSecurityGroup(group)
 	if err != nil {
@@ -49,24 +52,24 @@ func (s *StepSecurityGroup) Run(state multistep.StateBag) multistep.StepAction {
 	}
 
 	// Set the group ID so we can delete it later
-	s.createdGroupId = groupResp.Id
+	s.createdGroupId = *groupResp.GroupID
 
 	// Authorize the WinRM access
-	perms := []ec2.IPPerm{
-		ec2.IPPerm{
-			Protocol:  "tcp",
-			FromPort:  int(s.WinRMPort),
-			ToPort:    int(s.WinRMPort),
-			SourceIPs: []string{"0.0.0.0/0"},
-		},
+	// Authorize the SSH access for the security group
+	req := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupID:    groupResp.GroupID,
+		IPProtocol: aws.String("tcp"),
+		FromPort:   aws.Long(int64(s.WinRMPort)),
+		ToPort:     aws.Long(int64(s.WinRMPort)),
+		CIDRIP:     aws.String("0.0.0.0/0"),
 	}
 
 	// We loop and retry this a few times because sometimes the security
 	// group isn't available immediately because AWS resources are eventaully
 	// consistent.
-	ui.Say("Authorizing WinRM access on the temporary security group...")
+	ui.Say("Authorizing SSH access on the temporary security group...")
 	for i := 0; i < 5; i++ {
-		_, err = ec2conn.AuthorizeSecurityGroup(groupResp.SecurityGroup, perms)
+		_, err = ec2conn.AuthorizeSecurityGroupIngress(req)
 		if err == nil {
 			break
 		}
@@ -100,7 +103,7 @@ func (s *StepSecurityGroup) Cleanup(state multistep.StateBag) {
 
 	var err error
 	for i := 0; i < 5; i++ {
-		_, err = ec2conn.DeleteSecurityGroup(ec2.SecurityGroup{Id: s.createdGroupId})
+		_, err = ec2conn.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{GroupID: &s.createdGroupId})
 		if err == nil {
 			break
 		}

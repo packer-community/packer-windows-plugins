@@ -1,14 +1,14 @@
 package common
 
 import (
-	"fmt"
-	"github.com/mitchellh/goamz/ec2"
-	"github.com/mitchellh/multistep"
-	//"github.com/mitchellh/packer/common"
 	"errors"
-	wincommon "github.com/packer-community/packer-windows-plugins/common"
+	"fmt"
 	"log"
 	"time"
+
+	"github.com/awslabs/aws-sdk-go/service/ec2"
+	"github.com/mitchellh/multistep"
+	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
 // Returns an Endpoint suitable for the WinRM communicator
@@ -17,13 +17,13 @@ func WinRMAddress(e *ec2.EC2, port uint, private bool) func(multistep.StateBag) 
 		for j := 0; j < 2; j++ {
 			var host string
 			i := state.Get("instance").(*ec2.Instance)
-			if i.DNSName != "" {
-				host = i.DNSName
-			} else if i.VpcId != "" {
-				if i.PublicIpAddress != "" && !private {
-					host = i.PublicIpAddress
+			if *i.PublicDNSName != "" {
+				host = *i.PublicDNSName
+			} else if *i.VPCID != "" {
+				if *i.PublicIPAddress != "" && !private {
+					host = *i.PublicIPAddress
 				} else {
-					host = i.PrivateIpAddress
+					host = *i.PrivateIPAddress
 				}
 			}
 
@@ -32,13 +32,16 @@ func WinRMAddress(e *ec2.EC2, port uint, private bool) func(multistep.StateBag) 
 				return fmt.Sprintf("%s:%d", host, port), nil
 			}
 
-			r, err := e.Instances([]string{i.InstanceId}, ec2.NewFilter())
+			input := &ec2.DescribeInstancesInput{
+				InstanceIDs: []*string{i.InstanceID},
+			}
+			r, err := e.DescribeInstances(input)
 			if err != nil {
 				return "", err
 			}
 
 			if len(r.Reservations) == 0 || len(r.Reservations[0].Instances) == 0 {
-				return "", fmt.Errorf("instance not found: %s", i.InstanceId)
+				return "", fmt.Errorf("instance not found: %s", i.InstanceID)
 			}
 
 			state.Put("instance", &r.Reservations[0].Instances[0])
@@ -50,11 +53,10 @@ func WinRMAddress(e *ec2.EC2, port uint, private bool) func(multistep.StateBag) 
 }
 
 // Creates a WinRM connect step for an EC2 instance
-func NewConnectStep(ec2 *ec2.EC2, private bool, winrmConfig wincommon.WinRMConfig) multistep.Step {
+func NewConnectStep(ec2 *ec2.EC2, private bool, winrmConfig *wincommon.WinRMConfig) multistep.Step {
 	return &wincommon.StepConnectWinRM{
 		WinRMAddress:     WinRMAddress(ec2, winrmConfig.WinRMPort, private),
-		WinRMUser:        winrmConfig.WinRMUser,
-		WinRMPassword:    winrmConfig.WinRMPassword,
+		WinRMConfig:      winrmConfig,
 		WinRMWaitTimeout: winrmConfig.WinRMWaitTimeout,
 	}
 }

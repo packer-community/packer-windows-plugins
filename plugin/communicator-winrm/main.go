@@ -2,18 +2,21 @@ package main
 
 import (
 	"flag"
-	plugin "github.com/packer-community/packer-windows-plugins/communicator/winrm"
-	"github.com/masterzen/winrm/winrm"
-	"github.com/mitchellh/packer/packer"
-	rpc "github.com/mitchellh/packer/packer/plugin"
-	"github.com/rakyll/command"
 	"log"
 	"os"
 	"time"
+
+	"github.com/masterzen/winrm/winrm"
+	"github.com/mitchellh/packer/packer"
+	rpc "github.com/mitchellh/packer/packer/plugin"
+	plugin "github.com/packer-community/packer-windows-plugins/communicator/winrm"
+	"github.com/rakyll/command"
 )
 
 var host = flag.String("host", "localhost", "host machine")
 var port = flag.Int("port", 5985, "host port")
+var http = flag.Bool("http", false, "use http")
+var ignoreCertChain = flag.Bool("ignorecertchain", false, "ignore certificate chain")
 var user = flag.String("user", "vagrant", "user to run as")
 var pass = flag.String("pass", "vagrant", "user's password")
 var timeout = flag.Duration("timeout", 60*time.Second, "connection timeout")
@@ -49,7 +52,12 @@ func (r *RunCommand) Flags(fs *flag.FlagSet) *flag.FlagSet {
 func (r *RunCommand) Run(args []string) {
 	command := args[0]
 
-	endpoint := &winrm.Endpoint{Host: *host, Port: *port}
+	endpoint := &winrm.Endpoint{
+		Host:     *host,
+		Port:     *port,
+		HTTPS:    !*http,
+		Insecure: *ignoreCertChain,
+	}
 	communicator, err := plugin.New(endpoint, *user, *pass, *timeout)
 	rc := &packer.RemoteCmd{
 		Command: command,

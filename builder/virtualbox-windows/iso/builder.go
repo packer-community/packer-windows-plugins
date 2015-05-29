@@ -16,7 +16,7 @@ import (
 	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
-const BuilderId = "mitchellh.virtualbox"
+const BuilderId = "packercommunity.windows.virtualbox.iso"
 
 type Builder struct {
 	config config
@@ -314,7 +314,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			VMName:      b.config.VMName,
 			Tpl:         b.config.tpl,
 		},
-		winvboxcommon.NewConnectStep(b.config.WinRMConfig),
+		winvboxcommon.NewConnectStep(&b.config.WinRMConfig),
 		&vboxcommon.StepUploadVersion{
 			Path: b.config.VBoxVersionFile,
 		},

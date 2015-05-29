@@ -3,7 +3,9 @@ package ebs
 import (
 	"fmt"
 
-	"github.com/mitchellh/goamz/ec2"
+	"github.com/awslabs/aws-sdk-go/aws"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
+
 	"github.com/mitchellh/multistep"
 	"github.com/mitchellh/packer/packer"
 )
@@ -19,12 +21,12 @@ func (s *stepModifyInstance) Run(state multistep.StateBag) multistep.StepAction 
 	// Set SriovNetSupport to "simple". See http://goo.gl/icuXh5
 	if config.AMIEnhancedNetworking {
 		ui.Say("Enabling Enhanced Networking...")
-		_, err := ec2conn.ModifyInstance(
-			instance.InstanceId,
-			&ec2.ModifyInstance{SriovNetSupport: true},
-		)
+		_, err := ec2conn.ModifyInstanceAttribute(&ec2.ModifyInstanceAttributeInput{
+			InstanceID:      instance.InstanceID,
+			SRIOVNetSupport: &ec2.AttributeValue{Value: aws.String("simple")},
+		})
 		if err != nil {
-			err := fmt.Errorf("Error enabling Enhanced Networking on %s: %s", instance.InstanceId, err)
+			err := fmt.Errorf("Error enabling Enhanced Networking on %s: %s", *instance.InstanceID, err)
 			state.Put("error", err)
 			ui.Error(err.Error())
 			return multistep.ActionHalt

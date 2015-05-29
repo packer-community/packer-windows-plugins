@@ -111,6 +111,9 @@ func (c *Communicator) newCopyClient() (*winrmcp.Winrmcp, error) {
 			User:     c.user,
 			Password: c.password,
 		},
+		Https:                 c.endpoint.HTTPS,
+		Insecure:              c.endpoint.Insecure,
+		CACertBytes:           *c.endpoint.CACert,
 		OperationTimeout:      time.Minute * 5,
 		MaxOperationsPerShell: 15, // lowest common denominator
 	})

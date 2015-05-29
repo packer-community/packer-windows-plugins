@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mitchellh/packer/common/uuid"
 	"github.com/mitchellh/packer/packer"
 )
 
@@ -13,19 +14,24 @@ import (
 type RunConfig struct {
 	AssociatePublicIpAddress bool              `mapstructure:"associate_public_ip_address"`
 	AvailabilityZone         string            `mapstructure:"availability_zone"`
+	ConfigureSecureWinRM     bool              `mapstructure:"winrm_autoconfigure"`
 	IamInstanceProfile       string            `mapstructure:"iam_instance_profile"`
 	InstanceType             string            `mapstructure:"instance_type"`
+	KeyPairPrivateKeyFile    string            `mapstructure:"key_pair_private_key_file"`
+	NewAdministratorPassword string            `mapstructure:"new_administrator_password"`
 	RunTags                  map[string]string `mapstructure:"run_tags"`
 	SourceAmi                string            `mapstructure:"source_ami"`
 	SpotPrice                string            `mapstructure:"spot_price"`
 	SpotPriceAutoProduct     string            `mapstructure:"spot_price_auto_product"`
-	WinRMPrivateIp           bool              `mapstructure:"winrm_private_ip"`
 	SecurityGroupId          string            `mapstructure:"security_group_id"`
 	SecurityGroupIds         []string          `mapstructure:"security_group_ids"`
 	SubnetId                 string            `mapstructure:"subnet_id"`
+	TemporaryKeyPairName     string            `mapstructure:"temporary_key_pair_name"`
 	UserData                 string            `mapstructure:"user_data"`
 	UserDataFile             string            `mapstructure:"user_data_file"`
 	VpcId                    string            `mapstructure:"vpc_id"`
+	WinRMPrivateIp           bool              `mapstructure:"winrm_private_ip"`
+	WinRMCertificateFile     string            `mapstructure:"winrm_certificate_file"`
 }
 
 func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
@@ -38,17 +44,19 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 	}
 
 	templates := map[string]*string{
-		"iam_instance_profile":    &c.IamInstanceProfile,
-		"instance_type":           &c.InstanceType,
-		"spot_price":              &c.SpotPrice,
-		"spot_price_auto_product": &c.SpotPriceAutoProduct,
-		"source_ami":              &c.SourceAmi,
-		"subnet_id":               &c.SubnetId,
-		"vpc_id":                  &c.VpcId,
-		"availability_zone":       &c.AvailabilityZone,
-		"user_data":               &c.UserData,
-		"user_data_file":          &c.UserDataFile,
-		"security_group_id":       &c.SecurityGroupId,
+		"iam_instance_profile":      &c.IamInstanceProfile,
+		"instance_type":             &c.InstanceType,
+		"key_pair_private_key_file": &c.KeyPairPrivateKeyFile,
+		"spot_price":                &c.SpotPrice,
+		"spot_price_auto_product":   &c.SpotPriceAutoProduct,
+		"source_ami":                &c.SourceAmi,
+		"subnet_id":                 &c.SubnetId,
+		"temporary_key_pair_name":   &c.TemporaryKeyPairName,
+		"vpc_id":                    &c.VpcId,
+		"availability_zone":         &c.AvailabilityZone,
+		"user_data":                 &c.UserData,
+		"user_data_file":            &c.UserDataFile,
+		"security_group_id":         &c.SecurityGroupId,
 	}
 
 	errs := make([]error, 0)
@@ -70,6 +78,11 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 		errs = append(errs, errors.New("An instance_type must be specified"))
 	}
 
+	if c.TemporaryKeyPairName == "" {
+		c.TemporaryKeyPairName = fmt.Sprintf(
+			"packer %s", uuid.TimeOrderedUUID())
+	}
+
 	if c.SpotPrice == "auto" {
 		if c.SpotPriceAutoProduct == "" {
 			errs = append(errs, errors.New(
@@ -77,11 +90,21 @@ func (c *RunConfig) Prepare(t *packer.ConfigTemplate) []error {
 		}
 	}
 
-	if c.UserData != "" && c.UserDataFile != "" {
-		errs = append(errs, fmt.Errorf("Only one of user_data or user_data_file can be specified."))
-	} else if c.UserDataFile != "" {
-		if _, err := os.Stat(c.UserDataFile); err != nil {
-			errs = append(errs, fmt.Errorf("user_data_file not found: %s", c.UserDataFile))
+	if c.ConfigureSecureWinRM {
+		if c.UserData != "" || c.UserDataFile != "" {
+			errs = append(errs, fmt.Errorf("winrm_autoconfigure cannot be used in conjunction with user_data or user_data_file"))
+		}
+
+		if c.WinRMCertificateFile == "" {
+			errs = append(errs, fmt.Errorf("winrm_certificate_file must be set to the path of a PFX container holding the certificate to be used for WinRM."))
+		}
+	} else {
+		if c.UserData != "" && c.UserDataFile != "" {
+			errs = append(errs, fmt.Errorf("Only one of user_data or user_data_file can be specified."))
+		} else if c.UserDataFile != "" {
+			if _, err := os.Stat(c.UserDataFile); err != nil {
+				errs = append(errs, fmt.Errorf("user_data_file not found: %s", c.UserDataFile))
+			}
 		}
 	}
 

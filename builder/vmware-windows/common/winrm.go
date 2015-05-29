@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/multistep"
+	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
-func WinRMAddressFunc(config *WinRMConfig, driver Driver) func(multistep.StateBag) (string, error) {
+func WinRMAddressFunc(config *wincommon.WinRMConfig, driver Driver) func(multistep.StateBag) (string, error) {
 	return func(state multistep.StateBag) (string, error) {
 		if config.WinRMHost != "" {
 			return fmt.Sprintf("%s:%d", config.WinRMHost, config.WinRMPort), nil

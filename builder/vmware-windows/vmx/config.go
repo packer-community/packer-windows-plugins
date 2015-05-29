@@ -7,6 +7,7 @@ import (
 	"github.com/mitchellh/packer/common"
 	"github.com/mitchellh/packer/packer"
 	vmwcommon "github.com/packer-community/packer-windows-plugins/builder/vmware-windows/common"
+	wincommon "github.com/packer-community/packer-windows-plugins/common"
 )
 
 // Config is the configuration structure for the builder.
@@ -19,7 +20,7 @@ type Config struct {
 	vmwcommon.SSHConfig      `mapstructure:",squash"`
 	vmwcommon.ToolsConfig    `mapstructure:",squash"`
 	vmwcommon.VMXConfig      `mapstructure:",squash"`
-	vmwcommon.WinRMConfig    `mapstructure:",squash"`
+	wincommon.WinRMConfig    `mapstructure:",squash"`
 
 	BootCommand    []string `mapstructure:"boot_command"`
 	FloppyFiles    []string `mapstructure:"floppy_files"`

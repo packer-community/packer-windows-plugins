@@ -29,11 +29,8 @@ type StepConnectWinRM struct {
 	// if necessary for this address.
 	WinRMAddress func(multistep.StateBag) (string, error)
 
-	// The user name to connect to WinRM as
-	WinRMUser string
-
-	// The user password
-	WinRMPassword string
+	// WinRMConfig contains the configuration for WinRM.
+	WinRMConfig *WinRMConfig
 
 	// WinRMWaitTimeout is the total timeout to wait for WinRM to become available.
 	WinRMWaitTimeout time.Duration
@@ -111,7 +108,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 			continue
 		}
 
-		endpoint, err := newEndpoint(address)
+		endpoint, err := newEndpoint(address, s.WinRMConfig)
 		if err != nil {
 			log.Printf("Incorrect format for WinRM address: %s", err)
 			continue
@@ -119,7 +116,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 
 		log.Printf("Attempting WinRM connection (timeout: %s)", s.WinRMWaitTimeout)
 
-		comm, err = plugin.New(endpoint, s.WinRMUser, s.WinRMPassword, s.WinRMWaitTimeout)
+		comm, err = plugin.New(endpoint, s.WinRMConfig.WinRMUser, s.WinRMConfig.WinRMPassword, s.WinRMWaitTimeout)
 		if err != nil {
 			log.Printf("WinRM connection err: %s", err)
 			continue
@@ -131,7 +128,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 	return comm, nil
 }
 
-func newEndpoint(address string) (*winrm.Endpoint, error) {
+func newEndpoint(address string, config *WinRMConfig) (*winrm.Endpoint, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
@@ -141,5 +138,12 @@ func newEndpoint(address string) (*winrm.Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &winrm.Endpoint{Host: host, Port: iport}, nil
+
+	return &winrm.Endpoint{
+		Host:     host,
+		Port:     iport,
+		HTTPS:    !config.WinRMHttp,
+		Insecure: config.WinRMIgnoreCertChain,
+		CACert:   &config.WinRMCACertBytes,
+	}, nil
 }

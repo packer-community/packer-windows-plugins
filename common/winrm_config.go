@@ -10,18 +10,22 @@ import (
 )
 
 type WinRMConfig struct {
-	WinRMUser           string `mapstructure:"winrm_username"`
-	WinRMPassword       string `mapstructure:"winrm_password"`
-	WinRMHost           string `mapstructure:"winrm_host"`
-	WinRMPort           uint   `mapstructure:"winrm_port"`
-	RawWinRMWaitTimeout string `mapstructure:"winrm_wait_timeout"`
+	WinRMUser            string `mapstructure:"winrm_username"`
+	WinRMPassword        string `mapstructure:"winrm_password"`
+	WinRMHost            string `mapstructure:"winrm_host"`
+	WinRMPort            uint   `mapstructure:"winrm_port"`
+	RawWinRMWaitTimeout  string `mapstructure:"winrm_wait_timeout"`
+	WinRMHttp            bool   `mapstructure:"winrm_http"`
+	WinRMIgnoreCertChain bool   `mapstructure:"winrm_ignore_cert_chain"`
+	WinRMCACertFile      string `mapstructure:"winrm_ca_cert_file"`
 
 	WinRMWaitTimeout time.Duration
+	WinRMCACertBytes []byte
 }
 
 func (c *WinRMConfig) Prepare(t *packer.ConfigTemplate) []error {
 	if c.WinRMPort == 0 {
-		c.WinRMPort = 5985
+		c.WinRMPort = 5986
 	}
 
 	if c.RawWinRMWaitTimeout == "" {

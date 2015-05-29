@@ -27,7 +27,7 @@ func TestWinRMConfigPrepare(t *testing.T) {
 		t.Fatalf("err: %#v", errs)
 	}
 
-	if c.WinRMPort != 5985 {
+	if c.WinRMPort != 5986 {
 		t.Errorf("bad winrm port: %d", c.WinRMPort)
 	}
 }

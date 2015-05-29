@@ -81,7 +81,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			VMName:         b.config.VMName,
 			Tpl:            b.config.tpl,
 		},
-		winparallelscommon.NewConnectStep(b.config.WinRMConfig),
+		winparallelscommon.NewConnectStep(&b.config.WinRMConfig),
 		&parallelscommon.StepUploadVersion{
 			Path: b.config.PrlctlVersionFile,
 		},
