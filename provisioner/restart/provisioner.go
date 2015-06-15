@@ -2,19 +2,23 @@ package restart
 
 import (
 	"fmt"
-	"github.com/masterzen/winrm/winrm"
-	"github.com/mitchellh/packer/common"
-	"github.com/mitchellh/packer/packer"
 	"log"
 	"time"
+
+	"github.com/masterzen/winrm/winrm"
+	"github.com/mitchellh/packer/common"
+	"github.com/mitchellh/packer/helper/config"
+	"github.com/mitchellh/packer/packer"
+	"github.com/mitchellh/packer/template/interpolate"
 )
 
 var DefaultRestartCommand = "shutdown /r /c \"packer restart\" /t 5 && net stop winrm"
 var DefaultRestartCheckCommand = winrm.Powershell(`echo "${env:COMPUTERNAME} restarted."`)
 var retryableSleep = 5 * time.Second
 
-type config struct {
+type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
+	ctx                 interpolate.Context
 
 	// The command used to restart the guest machine
 	RestartCommand string `mapstructure:"restart_command"`
@@ -27,30 +31,25 @@ type config struct {
 	RawRestartTimeout string `mapstructure:"restart_timeout"`
 
 	restartTimeout time.Duration
-	tpl            *packer.ConfigTemplate
 }
 
 type Provisioner struct {
-	config config
+	config Config
 	comm   packer.Communicator
 	ui     packer.Ui
 	cancel chan struct{}
 }
 
 func (p *Provisioner) Prepare(raws ...interface{}) error {
-	md, err := common.DecodeConfig(&p.config, raws...)
+	err := config.Decode(&p.config, &config.DecodeOpts{
+		Interpolate: true,
+		InterpolateFilter: &interpolate.RenderFilter{
+			Exclude: []string{},
+		},
+	}, raws...)
 	if err != nil {
 		return err
 	}
-
-	p.config.tpl, err = packer.NewConfigTemplate()
-	if err != nil {
-		return err
-	}
-	p.config.tpl.UserVars = p.config.PackerUserVars
-
-	// Accumulate any errors
-	errs := common.CheckUnusedConfig(md)
 
 	if p.config.RestartCommand == "" {
 		p.config.RestartCommand = DefaultRestartCommand
@@ -64,6 +63,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 		p.config.RawRestartTimeout = "5m"
 	}
 
+	var errs *packer.MultiError
 	if p.config.RawRestartTimeout != "" {
 		p.config.restartTimeout, err = time.ParseDuration(p.config.RawRestartTimeout)
 		if err != nil {

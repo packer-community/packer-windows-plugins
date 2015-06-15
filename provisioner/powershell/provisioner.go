@@ -16,15 +16,18 @@ import (
 
 	"github.com/mitchellh/packer/common"
 	"github.com/mitchellh/packer/common/uuid"
+	"github.com/mitchellh/packer/helper/config"
 	"github.com/mitchellh/packer/packer"
+	"github.com/mitchellh/packer/template/interpolate"
 )
 
 const DefaultRemotePath = "c:/Windows/Temp/script.ps1"
 
 var retryableSleep = 2 * time.Second
 
-type config struct {
+type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
+	ctx                 interpolate.Context
 
 	// If true, the script contains binary and line endings will not be
 	// converted from Windows to Unix-style.
@@ -83,11 +86,10 @@ type config struct {
 	ValidExitCodes []int `mapstructure:"valid_exit_codes"`
 
 	startRetryTimeout time.Duration
-	tpl               *packer.ConfigTemplate
 }
 
 type Provisioner struct {
-	config       config
+	config       Config
 	communicator packer.Communicator
 }
 
@@ -97,19 +99,15 @@ type ExecuteCommandTemplate struct {
 }
 
 func (p *Provisioner) Prepare(raws ...interface{}) error {
-	md, err := common.DecodeConfig(&p.config, raws...)
+	err := config.Decode(&p.config, &config.DecodeOpts{
+		Interpolate: true,
+		InterpolateFilter: &interpolate.RenderFilter{
+			Exclude: []string{"execute_command"},
+		},
+	}, raws...)
 	if err != nil {
 		return err
 	}
-
-	p.config.tpl, err = packer.NewConfigTemplate()
-	if err != nil {
-		return err
-	}
-	p.config.tpl.UserVars = p.config.PackerUserVars
-
-	// Accumulate any errors
-	errs := common.CheckUnusedConfig(md)
 
 	if p.config.EnvVarFormat == "" {
 		p.config.EnvVarFormat = `$env:%s=\"%s\"; `
@@ -147,6 +145,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 		p.config.Vars = make([]string, 0)
 	}
 
+	var errs *packer.MultiError
 	if p.config.Script != "" && len(p.config.Scripts) > 0 {
 		errs = packer.MultiErrorAppend(errs,
 			errors.New("Only one of script or scripts can be specified."))
@@ -168,40 +167,6 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 
 	if p.config.Script != "" {
 		p.config.Scripts = []string{p.config.Script}
-	}
-
-	templates := map[string]*string{
-		"script":              &p.config.Script,
-		"start_retry_timeout": &p.config.RawStartRetryTimeout,
-		"remote_path":         &p.config.RemotePath,
-		"elevated_user":       &p.config.ElevatedUser,
-		"elevated_password":   &p.config.ElevatedPassword,
-	}
-
-	for n, ptr := range templates {
-		var err error
-		*ptr, err = p.config.tpl.Process(*ptr, nil)
-		if err != nil {
-			errs = packer.MultiErrorAppend(
-				errs, fmt.Errorf("Error processing %s: %s", n, err))
-		}
-	}
-
-	sliceTemplates := map[string][]string{
-		"inline":           p.config.Inline,
-		"scripts":          p.config.Scripts,
-		"environment_vars": p.config.Vars,
-	}
-
-	for n, slice := range sliceTemplates {
-		for i, elem := range slice {
-			var err error
-			slice[i], err = p.config.tpl.Process(elem, nil)
-			if err != nil {
-				errs = packer.MultiErrorAppend(
-					errs, fmt.Errorf("Error processing %s[%d]: %s", n, i, err))
-			}
-		}
 	}
 
 	if len(p.config.Scripts) == 0 && p.config.Inline == nil {
@@ -417,11 +382,11 @@ func (p *Provisioner) createCommandText() (command string, err error) {
 	if err != nil {
 		return "", err
 	}
-	command, err = p.config.tpl.Process(p.config.ExecuteCommand, &ExecuteCommandTemplate{
+	p.config.ctx.Data = &ExecuteCommandTemplate{
 		Vars: flattenedEnvVars,
 		Path: p.config.RemotePath,
-	})
-
+	}
+	command, err = interpolate.Render(p.config.ExecuteCommand, &p.config.ctx)
 	if err != nil {
 		return "", err
 	}
@@ -433,10 +398,17 @@ func (p *Provisioner) createCommandText() (command string, err error) {
 
 	// Can't double escape the env vars, lets create shiny new ones
 	flattenedEnvVars, err = p.createFlattenedEnvVars(true)
-	command, err = p.config.tpl.Process(p.config.ElevatedExecuteCommand, &ExecuteCommandTemplate{
+	if err != nil {
+		return "", err
+	}
+	p.config.ctx.Data = &ExecuteCommandTemplate{
 		Vars: flattenedEnvVars,
 		Path: p.config.RemotePath,
-	})
+	}
+	command, err = interpolate.Render(p.config.ElevatedExecuteCommand, &p.config.ctx)
+	if err != nil {
+		return "", err
+	}
 
 	// OK so we need an elevated shell runner to wrap our command, this is going to have its own path
 	// generate the script and update the command runner in the process

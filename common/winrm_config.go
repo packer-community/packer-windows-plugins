@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/mitchellh/packer/packer"
+	"github.com/mitchellh/packer/template/interpolate"
 )
 
 type WinRMConfig struct {
@@ -19,7 +19,7 @@ type WinRMConfig struct {
 	WinRMWaitTimeout time.Duration
 }
 
-func (c *WinRMConfig) Prepare(t *packer.ConfigTemplate) []error {
+func (c *WinRMConfig) Prepare(ctx *interpolate.Context) []error {
 	if c.WinRMPort == 0 {
 		c.WinRMPort = 5985
 	}
@@ -28,21 +28,7 @@ func (c *WinRMConfig) Prepare(t *packer.ConfigTemplate) []error {
 		c.RawWinRMWaitTimeout = "20m"
 	}
 
-	templates := map[string]*string{
-		"winrm_password":     &c.WinRMPassword,
-		"winrm_username":     &c.WinRMUser,
-		"winrm_wait_timeout": &c.RawWinRMWaitTimeout,
-	}
-
-	errs := make([]error, 0)
-	for n, ptr := range templates {
-		var err error
-		*ptr, err = t.Process(*ptr, nil)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("Error processing %s: %s", n, err))
-		}
-	}
-
+	var errs []error
 	if c.WinRMHost != "" {
 		if ip := net.ParseIP(c.WinRMHost); ip == nil {
 			if _, err := net.LookupHost(c.WinRMHost); err != nil {
