@@ -4,7 +4,7 @@ A suite of [Packer](http://www.packer.io/) plugins for provisioning Windows mach
 
 ### Status
 
-The plugins are generally available and actively maintained.
+Portions of this project are being incorporated into [mitchellh/packer](https://github.com/mitchellh/packer). The communicator is being moved and the builders are being made defunct. This project will be unbuildable until the dust settles. Relevant issue: [#63](https://github.com/packer-community/packer-windows-plugins/issues/63)
 
 [![wercker status](https://app.wercker.com/status/900b58d8e99fca90bcfcd599a5e5219e/m/master "wercker status")](https://app.wercker.com/project/bykey/900b58d8e99fca90bcfcd599a5e5219e)
 [![Coverage Status](https://coveralls.io/repos/packer-community/packer-windows-plugins/badge.png?branch=HEAD)](https://coveralls.io/r/packer-community/packer-windows-plugins)
