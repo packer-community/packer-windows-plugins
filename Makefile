@@ -17,4 +17,8 @@ testrace:
 updatedeps:
 	go get -d -v -p 2 ./...
 
-.PHONY: bin default dev test updatedeps
+install:
+	@[ -d "${HOME}/.packer.d/plugins" ] || mkdir -p "${HOME}/.packer.d/plugins"
+	@cp $(wildcard bin/*) "${HOME}/.packer.d/plugins"
+
+.PHONY: bin default dev install test testrace updatedeps
